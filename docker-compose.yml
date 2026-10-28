@@ -9,5 +9,8 @@ services:
     environment:
       - TZ=${TZ:-UTC}
       - DATABASE_PATH=/data/daybook.db
+      - DAYBOOK_SETUP_USERNAME=${DAYBOOK_SETUP_USERNAME:-admin}
+      - DAYBOOK_SETUP_PASSWORD=${DAYBOOK_SETUP_PASSWORD:-daybook-setup}
+      - DAYBOOK_USER_NAME=${DAYBOOK_USER_NAME:-Sara}
     volumes:
       - ${DATA_PATH:-./data}:/data

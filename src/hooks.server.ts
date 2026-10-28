@@ -19,10 +19,23 @@ function isPublic(pathname: string): boolean {
 
 export const handle: Handle = async ({ event, resolve }) => {
 	event.locals.user = getSessionUser(event.cookies);
+	const path = event.url.pathname;
 
-	if (!event.locals.user && !isPublic(event.url.pathname)) {
-		const next = encodeURIComponent(event.url.pathname + event.url.search);
+	if (!event.locals.user && !isPublic(path)) {
+		const next = encodeURIComponent(path + event.url.search);
 		throw redirect(303, `/login?next=${next}`);
+	}
+
+	if (
+		event.locals.user?.must_change_credentials &&
+		path !== '/setup' &&
+		path !== '/logout'
+	) {
+		throw redirect(303, '/setup');
+	}
+
+	if (event.locals.user && !event.locals.user.must_change_credentials && path === '/setup') {
+		throw redirect(303, '/');
 	}
 
 	return resolve(event);

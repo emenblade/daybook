@@ -5,21 +5,33 @@ import { DATABASE_PATH } from '$app/env/private';
 import { addDays, parseISO, todayISO } from '#lib/dates.ts';
 import { modalityFor } from '#lib/session.ts';
 import type { SessionStatus, SessionType } from '#lib/types.ts';
-import { hashPin } from './crypto.ts';
+import { hashPassword } from './crypto.ts';
+import { isValidUsername, normalizeUsername, usernameFromName } from '#lib/username.ts';
 import {
 	DEFAULT_PARSE_RULES,
 	normalizeName,
 	normalizeService
 } from './parse.ts';
 
-const SCHEMA_VERSION = 6;
+const SCHEMA_VERSION = 7;
 
 const SCHEMA = `
 	CREATE TABLE users (
 		id INTEGER PRIMARY KEY AUTOINCREMENT,
 		name TEXT NOT NULL,
 		color TEXT NOT NULL DEFAULT '#0d9488',
-		pin_hash TEXT NOT NULL
+		username TEXT NOT NULL UNIQUE,
+		password_hash TEXT NOT NULL,
+		must_change_credentials INTEGER NOT NULL DEFAULT 1,
+		session_version INTEGER NOT NULL DEFAULT 0
+	);
+
+	CREATE TABLE login_attempts (
+		key TEXT PRIMARY KEY,
+		attempts INTEGER NOT NULL DEFAULT 0,
+		first_at INTEGER NOT NULL,
+		last_at INTEGER NOT NULL,
+		locked_until INTEGER
 	);
 
 	CREATE TABLE clients (
@@ -188,6 +200,42 @@ function backfillAppointmentMetadata(database: Database.Database): void {
 	}
 }
 
+function migrateAuth(database: Database.Database): void {
+	addColumns(database, 'users', {
+		username: 'TEXT',
+		password_hash: 'TEXT',
+		must_change_credentials: 'INTEGER NOT NULL DEFAULT 1',
+		session_version: 'INTEGER NOT NULL DEFAULT 0'
+	});
+	database.exec(`
+		CREATE TABLE IF NOT EXISTS login_attempts (
+			key TEXT PRIMARY KEY,
+			attempts INTEGER NOT NULL DEFAULT 0,
+			first_at INTEGER NOT NULL,
+			last_at INTEGER NOT NULL,
+			locked_until INTEGER
+		);
+	`);
+	const users = database
+		.prepare('SELECT id, name, pin_hash FROM users ORDER BY id')
+		.all() as { id: number; name: string; pin_hash: string | null }[];
+	const used = new Set<string>();
+	const update = database.prepare(
+		'UPDATE users SET username = ?, password_hash = ?, must_change_credentials = 1, session_version = 0 WHERE id = ?'
+	);
+	for (const user of users) {
+		const base = usernameFromName(user.name);
+		let username = base;
+		let suffix = 2;
+		while (used.has(username)) {
+			username = `${base.slice(0, 28)}-${suffix}`;
+			suffix++;
+		}
+		used.add(username);
+		update.run(username, user.pin_hash ?? hashPassword('daybook-setup'), user.id);
+	}
+}
+
 function migrate(database: Database.Database): void {
 	let version = database.pragma('user_version', { simple: true }) as number;
 	if (version === SCHEMA_VERSION) return;
@@ -218,6 +266,12 @@ function migrate(database: Database.Database): void {
 			provider: 'TEXT'
 		});
 		backfillAppointmentMetadata(database);
+		database.pragma('user_version = 6');
+		version = 6;
+	}
+
+	if (version === 6) {
+		migrateAuth(database);
 		database.pragma(`user_version = ${SCHEMA_VERSION}`);
 		return;
 	}
@@ -235,6 +289,7 @@ function migrate(database: Database.Database): void {
 		DROP TABLE IF EXISTS sessions;
 		DROP TABLE IF EXISTS entries;
 		DROP TABLE IF EXISTS users;
+		DROP TABLE IF EXISTS login_attempts;
 		DROP TABLE IF EXISTS settings;
 	`);
 	database.exec(SCHEMA);
@@ -294,11 +349,19 @@ function seed(database: Database.Database): void {
 	const count = database.prepare('SELECT count(*) AS c FROM users').get() as { c: number };
 	if (count.c > 0) return;
 
-	database.prepare('INSERT INTO users (name, color, pin_hash) VALUES (?, ?, ?)').run(
-		'Sara',
-		'#0d9488',
-		hashPin('1111')
-	);
+	const setupUsername = normalizeUsername(process.env.DAYBOOK_SETUP_USERNAME || 'admin');
+	const setupPassword = process.env.DAYBOOK_SETUP_PASSWORD || 'daybook-setup';
+	const displayName = process.env.DAYBOOK_USER_NAME?.trim() || 'Sara';
+	database
+		.prepare(
+			'INSERT INTO users (name, color, username, password_hash, must_change_credentials, session_version) VALUES (?, ?, ?, ?, 1, 0)'
+		)
+		.run(
+			displayName,
+			'#0d9488',
+			isValidUsername(setupUsername) ? setupUsername : 'admin',
+			hashPassword(setupPassword)
+		);
 
 	const today = todayISO();
 	const used = new Map<string, [number, number][]>();

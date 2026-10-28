@@ -21,17 +21,27 @@
 
 		<form method="POST" class="card space-y-4 p-4">
 			<input type="hidden" name="next" value={data.next} />
-			<p class="text-center text-sm font-semibold">{data.userName}</p>
 			<div>
-				<label class="label" for="pin">PIN</label>
+				<label class="label" for="username">Username</label>
 				<input
-					id="pin"
-					class="input text-center text-2xl tracking-[0.5em]"
+					id="username"
+					class="input"
+					type="text"
+					name="username"
+					autocomplete="username"
+					autocapitalize="none"
+					spellcheck="false"
+					required
+				/>
+			</div>
+			<div>
+				<label class="label" for="password">Password</label>
+				<input
+					id="password"
+					class="input"
 					type="password"
-					name="pin"
-					inputmode="numeric"
-					autocomplete="off"
-					maxlength="8"
+					name="password"
+					autocomplete="current-password"
 					required
 				/>
 			</div>

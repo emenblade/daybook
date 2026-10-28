@@ -62,14 +62,21 @@ npm install
 npm run dev -- --open
 ```
 
-PIN: `1111` (change it in **Settings**). On first run the database is seeded with
-three months of realistic demo data: today's board, unconfirmed sessions, two
-clients who need follow-up, missing and due treatment plans, unsigned consent
-forms, and upcoming appointments. The seed is relative to the day you first run
-it.
+First-run login: username `admin`, password `daybook-setup` (or the
+`DAYBOOK_SETUP_*` values you set). Daybook immediately forces you to choose a
+permanent username and password before the app can be used. On first run the
+database is seeded with three months of realistic demo data: today's board,
+unconfirmed sessions, two clients who need follow-up, missing and due treatment
+plans, unsigned consent forms, and upcoming appointments. The seed is relative to
+the day you first run it.
 
 When you are ready for real data: **Settings → Remove demo data**, then connect
 the calendar on **Sync**.
+
+Existing installs: after this upgrade, the login name is derived from the display
+name (for example `sara`) and the old PIN becomes the temporary password. The
+first login forces you to choose a permanent username and password. Fresh
+installs use the `DAYBOOK_SETUP_*` bootstrap credentials from the environment.
 
 ## Connecting her calendar
 
@@ -95,7 +102,8 @@ password. The app stores it only in the local database.
 3. Save, then **Sync now**.
 
 The password is stored in the local SQLite database (on your NAS), never sent
-anywhere else. Backups of the database contain it — treat backups accordingly.
+anywhere else. Encrypted backups still contain it inside the encrypted file;
+protect the backup passphrase and the live database volume.
 
 ### 3. iCloud public calendar link (only if needed)
 
@@ -174,9 +182,15 @@ To build from source instead: `cd source && docker compose up -d --build`.
 | --- | --- | --- |
 | `TZ` | `UTC` | **Set this.** Controls “today”, the 5pm banner, and displayed times. |
 | `DATABASE_PATH` | `/data/daybook.db` | SQLite file |
+| `DAYBOOK_SETUP_USERNAME` | `admin` | First-run bootstrap username |
+| `DAYBOOK_SETUP_PASSWORD` | `daybook-setup` | First-run bootstrap password; change before exposing |
+| `DAYBOOK_USER_NAME` | `Sara` | Display name in the UI |
 
-Backups: **Settings → Download backup**, or copy the `data/` volume while the
-container is stopped. CSV exports from **Hours** cover tax records.
+Backups: **Settings → Encrypted backup**, with a passphrase you choose. The
+passphrase is not stored; without it the backup cannot be restored. Restore with
+`DAYBOOK_BACKUP_PASSPHRASE=... node scripts/decrypt-backup.mjs backup.db.enc restored.db`
+or copy the backup into the container and run the same script there. CSV exports
+from **Hours** cover tax records.
 
 ## Desk device
 
@@ -195,7 +209,8 @@ phones.
    ```
    (Tailscale is a WireGuard-based alternative with less paperwork.)
 3. Point Chromium at `http://<nas-wireguard-ip>:8484/kiosk`, sign in once with the
-   PIN, and let the session cookie persist. Add to home screen / use kiosk flags:
+   username/password, and let the session cookie persist (90 days). Add to home
+   screen / use kiosk flags:
    ```
    chromium --kiosk --noerrdialogs --disable-infobars \
      --user-data-dir=$HOME/.config/daybook-kiosk \
@@ -205,7 +220,7 @@ phones.
    xset -dpms`). The kiosk refreshes itself every minute and wakes on tap.
 
 The device only needs the WireGuard tunnel; the app never has to be exposed to
-the open internet. If the login expires, the kiosk redirects to the PIN screen
+the open internet. If the login expires, the kiosk redirects to the login screen
 and returns to `/kiosk` afterwards.
 
 ### E-ink displays

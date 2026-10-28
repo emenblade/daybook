@@ -12,7 +12,7 @@ app-specific password.
    `https://…janeapp.com/ical/…/appointments.ics`.
 4. Set the **daily sync time** (default 03:30).
 5. Tap **Save calendar source**, then **Sync now**.
-6. Check **Recent calendar events**:
+6. Check **Event diagnostics**:
    - Jane titles look like `First L. (In-Person FNIHB/IRS/Bigstone)`.
    - Break/lunch entries should show as `Break`, `Work`, or `Personal`, not as
      client sessions.
@@ -79,7 +79,7 @@ Apple ID is managed by an employer/school; use the Jane link instead.
 3. Apple ID: her email.
 4. Password: the app-specific password (not her main Apple ID password).
 5. Calendar name: exact name, or leave blank to use the first calendar.
-6. **Save → Sync now** → check **Recent calendar events**.
+6. **Save → Sync now** → check **Event diagnostics**.
 
 The password is stored in the local database. Revoke it any time at
 appleid.apple.com → Sign-In and Security → App-Specific Passwords.
@@ -90,7 +90,7 @@ appleid.apple.com → Sign-In and Security → App-Specific Passwords.
 | --- | --- |
 | `401/403` on CalDAV | Wrong Apple ID or password; must be an app-specific password. |
 | “Calendar not found” | Exact name mismatch; use one of the names listed in the error, or leave blank. |
-| Sync succeeds but no sessions | Jane is writing to a different calendar; check **Recent calendar events**. |
+| Sync succeeds but no sessions | Jane is writing to a different calendar; check **Event diagnostics**. |
 | Client names don't match | Use **Sync → Parsing rules → Test parse**; the Jane defaults should match `First L. (Service)`. |
 | Times look shifted | Set the container `TZ` to `America/Edmonton`; check the kiosk/tablet timezone. |
 | The Jane link stops working | Get a fresh link from Jane and paste it into **Sync**, then run **Sync now**. |

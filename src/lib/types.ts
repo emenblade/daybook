@@ -19,6 +19,9 @@ export interface User {
 	id: number;
 	name: string;
 	color: string;
+	username: string;
+	must_change_credentials: number;
+	session_version: number;
 }
 
 export interface Participant {

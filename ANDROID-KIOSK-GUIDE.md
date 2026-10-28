@@ -34,7 +34,7 @@ The tablet must be able to reach the NAS from her desk without anyone touching i
    - Enable **Block connections without VPN** (keeps the kiosk from silently
      using an unprotected connection).
 5. Test: open a browser and go to `http://<NAS_WG_IP>:8484/login`. You should see
-   the Daybook PIN screen.
+   the Daybook login screen.
 
 Tailscale alternative: install Tailscale, sign in, and enable Android's
 always-on VPN for it. Tailscale starts on boot automatically.
@@ -59,7 +59,7 @@ In Fully Kiosk: **Settings → Web Content Settings**:
 - Set **Screen Orientation** to landscape.
 - If asked about “Load start URL on restart”, enable it.
 
-Tap the home/back gesture to return to the page and log in once with the PIN.
+Tap the home/back gesture to return to the page and log in once with the username and password.
 Fully stores the cookie, so it should not ask again on restart.
 
 ## 4. Lock it down (the important part)
@@ -136,7 +136,7 @@ after a reboot.
 | Symptom | Fix |
 | --- | --- |
 | Browser error / “can’t reach page” | VPN is down. Open WireGuard, reconnect. Fully reloads on reconnect if enabled. |
-| PIN screen after a restart | Log in again; the cookie lasts 90 days. If it happens constantly, make sure Fully is not clearing cookies on exit. |
+| Login screen after a restart | Log in again; the cookie lasts 90 days. If it happens constantly, make sure Fully is not clearing cookies on exit. |
 | Kiosk shows an old day | Pull to refresh / tap Refresh (e-ink) / wait for the 5-minute refresh. Check the tablet's date/time. |
 | Fully keeps closing | Battery optimisation is still on. Set the app to Unrestricted. |
 | Tablet is sluggish | E-ink devices are slow; avoid animations (we already disable them in e-ink mode), close other apps. |

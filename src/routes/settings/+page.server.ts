@@ -1,6 +1,12 @@
 import { DATABASE_PATH } from '$app/env/private';
 import { fail, type Actions } from '@sveltejs/kit';
-import { authenticate, setUserPin } from '#lib/server/auth.ts';
+import {
+	authenticate,
+	createSessionCookie,
+	setUserCredentials,
+	usernameTaken
+} from '#lib/server/auth.ts';
+import { isValidUsername } from '#lib/username.ts';
 import {
 	getPrimaryUser,
 	hasDemoData,
@@ -40,23 +46,33 @@ export const actions: Actions = {
 		return { nameSaved: true as const };
 	},
 
-	changePin: async ({ request, locals }) => {
-		if (!locals.user) return fail(401, { pinError: 'Not signed in.' });
+	changeCredentials: async ({ request, locals, cookies, url }) => {
+		if (!locals.user) return fail(401, { credentialsError: 'Not signed in.' });
 		const form = await request.formData();
-		const current = String(form.get('current_pin') ?? '');
-		const next = String(form.get('new_pin') ?? '');
-		const confirm = String(form.get('confirm_pin') ?? '');
-		if (!authenticate(locals.user.id, current)) {
-			return fail(400, { pinError: 'Current PIN is wrong.' });
+		const current = String(form.get('current_password') ?? '');
+		const username = String(form.get('username') ?? '').trim();
+		const next = String(form.get('new_password') ?? '');
+		const confirm = String(form.get('confirm_password') ?? '');
+		if (!authenticate(locals.user.username, current)) {
+			return fail(400, { credentialsError: 'Current password is wrong.' });
 		}
-		if (!/^\d{4,8}$/.test(next)) {
-			return fail(400, { pinError: 'New PIN must be 4–8 digits.' });
+		if (!isValidUsername(username)) {
+			return fail(400, {
+				credentialsError: 'Username must be 3–32 characters: letters, numbers, dots, dashes, underscores.'
+			});
+		}
+		if (usernameTaken(username, locals.user.id)) {
+			return fail(400, { credentialsError: 'That username is already taken.' });
+		}
+		if (next.length < 12 || next.length > 200) {
+			return fail(400, { credentialsError: 'Password must be 12–200 characters.' });
 		}
 		if (next !== confirm) {
-			return fail(400, { pinError: 'New PINs do not match.' });
+			return fail(400, { credentialsError: 'New passwords do not match.' });
 		}
-		setUserPin(locals.user.id, next);
-		return { pinSaved: true as const };
+		const user = setUserCredentials(locals.user.id, username, next);
+		createSessionCookie(cookies, user, url.protocol === 'https:');
+		return { credentialsSaved: true as const };
 	},
 
 	saveReminders: async ({ request }) => {

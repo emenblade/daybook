@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
+	import BackupDownload from '#lib/components/BackupDownload.svelte';
 	import { fmtTsDateTime } from '#lib/dates.ts';
 	import type { PageProps } from './$types';
 
@@ -34,55 +35,72 @@
 			<button class="btn-secondary w-full">Save name</button>
 		</form>
 
-		<form method="POST" action="?/changePin" use:enhance class="space-y-2 border-t border-slate-100 pt-3 dark:border-slate-800">
+		<form method="POST" action="?/changeCredentials" use:enhance class="space-y-2 border-t border-slate-100 pt-3 dark:border-slate-800">
+			<h3 class="text-xs font-semibold uppercase tracking-wide text-slate-400">
+				Username &amp; password
+			</h3>
+			<div>
+				<label class="label" for="username">Username</label>
+				<input
+					id="username"
+					class="input"
+					name="username"
+					value={data.user?.username ?? ''}
+					autocomplete="username"
+					autocapitalize="none"
+					spellcheck="false"
+					required
+				/>
+			</div>
 			<div class="grid grid-cols-3 gap-2">
 				<div>
-					<label class="label" for="current_pin">Current</label>
+					<label class="label" for="current_password">Current</label>
 					<input
-						id="current_pin"
+						id="current_password"
 						class="input"
 						type="password"
-						name="current_pin"
-						inputmode="numeric"
-						autocomplete="off"
-						maxlength="8"
+						name="current_password"
+						autocomplete="current-password"
 						required
 					/>
 				</div>
 				<div>
-					<label class="label" for="new_pin">New</label>
+					<label class="label" for="new_password">New</label>
 					<input
-						id="new_pin"
+						id="new_password"
 						class="input"
 						type="password"
-						name="new_pin"
-						inputmode="numeric"
-						autocomplete="off"
-						maxlength="8"
+						name="new_password"
+						autocomplete="new-password"
+						minlength="12"
 						required
 					/>
 				</div>
 				<div>
-					<label class="label" for="confirm_pin">Again</label>
+					<label class="label" for="confirm_password">Again</label>
 					<input
-						id="confirm_pin"
+						id="confirm_password"
 						class="input"
 						type="password"
-						name="confirm_pin"
-						inputmode="numeric"
-						autocomplete="off"
-						maxlength="8"
+						name="confirm_password"
+						autocomplete="new-password"
+						minlength="12"
 						required
 					/>
 				</div>
 			</div>
-			{#if form?.pinError}
-				<p class="text-sm font-medium text-rose-600 dark:text-rose-400">{form.pinError}</p>
+			<p class="text-[11px] text-slate-400 dark:text-slate-500">
+				At least 12 characters. Changing this signs out other sessions.
+			</p>
+			{#if form?.credentialsError}
+				<p class="text-sm font-medium text-rose-600 dark:text-rose-400">{form.credentialsError}</p>
 			{/if}
-			{#if form?.pinSaved}
-				<p class="text-sm font-medium text-emerald-600 dark:text-emerald-400">PIN changed.</p>
+			{#if form?.credentialsSaved}
+				<p class="text-sm font-medium text-emerald-600 dark:text-emerald-400">
+					Username and password saved.
+				</p>
 			{/if}
-			<button class="btn-secondary w-full">Change PIN</button>
+			<button class="btn-secondary w-full">Save username &amp; password</button>
 		</form>
 	</section>
 
@@ -180,8 +198,8 @@
 			Database: <code class="rounded bg-slate-100 px-1 dark:bg-slate-800">{data.dbPath}</code>.
 			Everything stays on the NAS.
 		</p>
+		<BackupDownload />
 		<div class="flex flex-wrap gap-2">
-			<a class="chip chip-sky" href="/api/backup">Download backup</a>
 			<a class="chip chip-slate" href="/api/export">Export sessions CSV</a>
 		</div>
 		{#if data.hasDemo}

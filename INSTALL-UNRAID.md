@@ -53,13 +53,15 @@ The container runs as root inside the container (same as StreamAssets), so the d
 ## 2. First run
 
 1. Open `http://<nas-ip>:8484`.
-2. Sign in with PIN **1111**.
-3. **Settings:** change the PIN, set the timezone/name, and adjust the 3-day
+2. Sign in with the first-run bootstrap credentials (`admin` / `daybook-setup`
+   unless you set `DAYBOOK_SETUP_*` in the template). Daybook will force you to
+   choose a permanent username and password before you can continue.
+3. **Settings:** confirm the name, set the timezone, and adjust the 3-day
    reminder and 30-day follow-up thresholds if desired.
 4. **Settings → Remove demo data**.
 5. **Sync → Calendar source → ICS feed URL** → paste the Jane link → **Save** →
    **Sync now**.
-6. Check **Recent calendar events** and then the **Overview**/`/kiosk`.
+6. Check **Event diagnostics** and then the **Overview**/`/kiosk`.
 
 No iPhone access is needed when using the Jane link. The link is a secret; treat
 it like a password and do not put it in screenshots or the repo. The calendar
@@ -79,12 +81,21 @@ cd /mnt/user/appdata/daybook-src
 docker compose up -d --build
 ```
 
+## Existing installs after the password update
+
+The first build with password auth migrates the old PIN into a temporary
+password. The username is derived from the display name (for example `sara`).
+Log in once with that username and the old PIN; Daybook then forces you to choose
+a permanent username and password. Fresh installs use `DAYBOOK_SETUP_USERNAME`
+and `DAYBOOK_SETUP_PASSWORD` from the template.
+
 ## Updates and backups
 
 - **GHCR install:** Unraid → Docker → Daybook → **Check for Updates** pulls the
   latest published image. Recreate the container; `/data` is untouched.
-- Database: `/mnt/user/appdata/daybook/daybook.db`; back up that folder or use
-  **Settings → Download backup**.
+- Database: `/mnt/user/appdata/daybook/daybook.db`; use **Settings → Encrypted
+  backup** with a passphrase, or stop the container and protect a copy of the
+  volume. The passphrase is not stored; keep it somewhere safe.
 - The first Actions build must finish before the GHCR template can pull. If the
   image is not available yet, check the repo's **Actions** tab.
 
@@ -96,5 +107,5 @@ docker compose up -d --build
 | `SQLITE_CANTOPEN` | Check that `/mnt/user/appdata/daybook` is mapped to `/data` and `DATABASE_PATH=/data/daybook.db`; the container runs as root. |
 | Times are wrong | Set `TZ=America/Edmonton` (or her zone) and recreate the container. |
 | Jane sync fails | The Sync screen shows the error; confirm the link still works and has not been rotated. |
-| Kiosk asks for PIN constantly | Do not use private/incognito mode; Fully Kiosk should keep cookies. |
+| Kiosk asks for login constantly | Do not use private/incognito mode; Fully Kiosk should keep cookies (90 days). |
 | Follow-up list is empty | Expected until the app has enough feed history (see the note above). |

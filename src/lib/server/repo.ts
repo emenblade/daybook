@@ -83,20 +83,15 @@ function attachParticipants(rows: AppointmentRow[]): Appointment[] {
 /* ---------------- users ---------------- */
 
 export function getPrimaryUser(): User | undefined {
-	return db.prepare('SELECT id, name, color FROM users ORDER BY id LIMIT 1').get() as
-		| User
-		| undefined;
+	return db
+		.prepare(
+			'SELECT id, name, color, username, must_change_credentials, session_version FROM users ORDER BY id LIMIT 1'
+		)
+		.get() as User | undefined;
 }
 
 export function updateUserName(id: number, name: string): void {
 	db.prepare('UPDATE users SET name = ? WHERE id = ?').run(name, id);
-}
-
-export function getPinHash(id: number): string | undefined {
-	const row = db.prepare('SELECT pin_hash FROM users WHERE id = ?').get(id) as
-		| { pin_hash: string }
-		| undefined;
-	return row?.pin_hash;
 }
 
 /* ---------------- clients ---------------- */

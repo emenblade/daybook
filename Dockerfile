@@ -28,6 +28,7 @@ COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/build ./build
 COPY --from=build /app/package.json ./package.json
 COPY server.js ./server.js
+COPY scripts ./scripts
 
 RUN mkdir -p /data
 # Runs as root inside the container, matching the other Unraid containers

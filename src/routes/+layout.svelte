@@ -11,6 +11,7 @@
 	let { data, children }: LayoutProps = $props();
 
 	const isKiosk = $derived(page.url.pathname.startsWith('/kiosk'));
+	const isSetup = $derived(page.url.pathname === '/setup');
 	const initial = $derived(data.user?.name?.trim().charAt(0).toUpperCase() ?? '?');
 
 	onMount(() => {
@@ -26,7 +27,7 @@
 </svelte:head>
 
 {#if data.user}
-	{#if isKiosk}
+	{#if isKiosk || isSetup}
 		{@render children()}
 	{:else}
 		<div class="min-h-dvh bg-slate-100 text-slate-900 dark:bg-slate-950 dark:text-slate-100">
