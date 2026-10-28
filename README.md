@@ -131,9 +131,7 @@ cp "/mnt/user/share/calendar app/daybook.xml" \
 Then add **Daybook** from the Unraid Docker templates; Unraid pulls the GHCR
 image. Set `TZ` (default `America/Edmonton`). No `docker load` is required.
 
-The share bundle also contains an optional offline image and
-`daybook-local.xml` if GHCR is unreachable. To build from source:
-`cd source && docker compose up -d --build`.
+To build from source instead: `cd source && docker compose up -d --build`.
 
 | Variable | Default | Purpose |
 | --- | --- | --- |

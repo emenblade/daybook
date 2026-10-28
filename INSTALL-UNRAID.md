@@ -5,7 +5,6 @@ Daybook is published as a container image here:
 - **GitHub repo:** https://github.com/emenblade/daybook
 - **Image:** `ghcr.io/emenblade/daybook:latest`
 - **Unraid template:** `daybook.xml`
-- **Local/offline fallback:** `daybook-local.xml` + `image/daybook-1.2.1-amd64.tar`
 
 The app is LAN/VPN-only. Do not port-forward it to the internet.
 
@@ -18,13 +17,8 @@ calendar app/
 ├── CALENDAR-SETUP-GUIDE.md        ← Jane feed and private iCloud options
 ├── ANDROID-KIOSK-GUIDE.md         ← lock down an Android/e-ink tablet
 ├── guides/                        ← printable PDFs
-├── daybook.xml                    ← install from GHCR (recommended)
-├── daybook-local.xml              ← install from the offline tar
-├── image/                         ← optional offline image
-│   ├── daybook-1.2.1-amd64.tar
-│   ├── daybook-1.2.1-amd64.tar.gz
-│   └── SHA256SUMS
-├── source/                        ← complete source (build/push to GitHub)
+├── daybook.xml                    ← install from GHCR
+├── source/                        ← complete source (build locally if needed)
 ├── screenshots/
 └── sample-calendar.ics
 ```
@@ -76,22 +70,7 @@ guide has the optional private iCloud path.
 > accurate as Daybook accumulates history. If Jane can export historical
 > appointments/client data, we can add an import.
 
-## 3. Optional: offline install from the bundled image
-
-If GHCR is unreachable, the bundle includes the same image as a file:
-
-```bash
-docker load -i "/mnt/user/share/calendar app/image/daybook-1.2.1-amd64.tar"
-docker images | grep daybook
-mkdir -p /mnt/user/appdata/daybook
-cp "/mnt/user/share/calendar app/daybook-local.xml" \
-   /boot/config/plugins/dockerMan/templates-user/daybook-local.xml
-```
-
-Then add **Daybook (local)** from the Unraid templates. `daybook-local.xml`
-uses `daybook:latest` from the loaded file; `daybook.xml` uses GHCR.
-
-## 4. Optional: build from source on the NAS
+## 3. Optional: build from source on the NAS
 
 Copy `source/` to the NAS and run:
 
@@ -104,7 +83,6 @@ docker compose up -d --build
 
 - **GHCR install:** Unraid → Docker → Daybook → **Check for Updates** pulls the
   latest published image. Recreate the container; `/data` is untouched.
-- **Local install:** load a newer tar and recreate the container.
 - Database: `/mnt/user/appdata/daybook/daybook.db`; back up that folder or use
   **Settings → Download backup**.
 - The first Actions build must finish before the GHCR template can pull. If the
