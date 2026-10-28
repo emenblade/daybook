@@ -1,5 +1,6 @@
 <script lang="ts">
 	import ClientStatusPill from '#lib/components/ClientStatusPill.svelte';
+	import ConsentCheck from '#lib/components/ConsentCheck.svelte';
 	import { fmtTsDate, relativeDaysText } from '#lib/dates.ts';
 	import type { PageProps } from './$types';
 
@@ -8,7 +9,11 @@
 
 <header class="mb-4">
 	<p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Clients</p>
-	<h1 class="text-xl font-bold">{data.clients.length} client{data.clients.length === 1 ? '' : 's'}</h1>
+	<h1 class="text-xl font-bold">
+		{data.clients.length} client{data.clients.length === 1 ? '' : 's'}{#if data.filterLabel}{' '}<span
+				class="text-sm font-normal text-slate-400">· {data.filterLabel}</span
+			>{/if}
+	</h1>
 </header>
 
 <form method="GET" class="card mb-4 space-y-2 p-3">
@@ -28,6 +33,36 @@
 			<option value="discharged" selected={data.status === 'discharged'}>Discharged</option>
 		</select>
 	</div>
+	<label class="flex items-center gap-2 text-sm font-medium">
+		<input
+			type="checkbox"
+			name="consent"
+			value="due"
+			checked={data.consent === 'due'}
+			class="h-4 w-4 rounded border-slate-300"
+		/>
+		Consent forms due
+	</label>
+	<label class="flex items-center gap-2 text-sm font-medium">
+		<input
+			type="checkbox"
+			name="plan"
+			value="due"
+			checked={data.plan === 'due'}
+			class="h-4 w-4 rounded border-slate-300"
+		/>
+		Treatment plans due
+	</label>
+	<label class="flex items-center gap-2 text-sm font-medium">
+		<input
+			type="checkbox"
+			name="followup"
+			value="due"
+			checked={data.followup === 'due'}
+			class="h-4 w-4 rounded border-slate-300"
+		/>
+		Follow up due
+	</label>
 	<div class="flex gap-2">
 		<button class="btn-primary flex-1 py-2" type="submit">Filter</button>
 		<a class="btn-secondary px-4 py-2" href="/clients">Clear</a>
@@ -36,15 +71,26 @@
 
 <ul class="space-y-2">
 	{#each data.clients as client (client.id)}
-		<li>
+		<li class="card flex items-stretch p-0">
 			<a
 				href="/clients/{client.id}"
-				class="card flex items-center justify-between gap-3 p-3 transition active:scale-[0.99]"
+				class="flex min-w-0 flex-1 items-center justify-between gap-3 p-3 transition active:scale-[0.99]"
 			>
 				<div class="min-w-0">
-					<p class="flex items-center gap-2 truncate font-semibold">
+					<p class="flex flex-wrap items-center gap-2 truncate font-semibold">
 						{client.name}
 						<ClientStatusPill status={client.status} />
+						{#if client.planDue}
+							<span
+								class="pill bg-violet-100 text-violet-700 dark:bg-violet-900/50 dark:text-violet-300"
+								>Plan due</span
+							>
+						{:else if client.planUpcoming}
+							<span
+								class="pill bg-sky-100 text-sky-700 dark:bg-sky-900/50 dark:text-sky-300"
+								>Plan soon</span
+							>
+						{/if}
 					</p>
 					<p class="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
 						{#if client.last_seen_at}
@@ -74,6 +120,19 @@
 					<path d="m9 6 6 6-6 6" />
 				</svg>
 			</a>
+			<div
+				class="flex shrink-0 items-center border-l border-slate-100 px-2.5 dark:border-slate-800"
+			>
+				{#if client.consent_signed_at}
+					<span
+						class="pill bg-emerald-100 text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-300"
+						title="Consent signed"
+						>Consent ✓</span
+					>
+				{:else}
+					<ConsentCheck participant={client} compact label="Consent" />
+				{/if}
+			</div>
 		</li>
 	{:else}
 		<li class="card p-4 text-center text-sm text-slate-400 dark:text-slate-500">

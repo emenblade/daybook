@@ -110,20 +110,20 @@
 				cleared.
 			</p>
 			<div>
-				<label class="label" for="staleDays">Follow up if not seen for (days)</label>
+				<label class="label" for="staleDays">Follow up after (days) with no future booking</label>
 				<input
 					id="staleDays"
 					class="input"
 					type="number"
 					name="staleDays"
-					min="7"
+					min="1"
 					max="365"
 					value={data.reminder.staleDays}
 				/>
 			</div>
 			<p class="text-[11px] text-slate-400 dark:text-slate-500">
-				Clients with no completed appointment in this many days, and nothing booked, appear in
-				the “Clients to review” list.
+				Clients with no completed appointment in at least this many days, and nothing booked,
+				appear in the “Long-term reminders” section.
 			</p>
 			{#if form?.reminderError}
 				<p class="text-sm font-medium text-rose-600 dark:text-rose-400">{form.reminderError}</p>
@@ -143,7 +143,7 @@
 		<p class="text-xs text-slate-500 dark:text-slate-400">
 			Point the device browser at <code class="rounded bg-slate-100 px-1 dark:bg-slate-800"
 				>/kiosk</code
-			>. It shows today's plan, the cleanup list, and clients to review with large touch
+			>. It shows today's plan, the cleanup list, and long-term reminders with large touch
 			targets. Add <code class="rounded bg-slate-100 px-1 dark:bg-slate-800">?eink=1</code> for a
 			high-contrast, slow-refresh e-ink mode. On Android, lock the tablet to this page with the
 			Fully Kiosk Browser app (see the Android guide in the calendar app bundle).

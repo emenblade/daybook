@@ -11,7 +11,7 @@ import {
 	normalizeService
 } from './parse.ts';
 
-const SCHEMA_VERSION = 3;
+const SCHEMA_VERSION = 5;
 
 const SCHEMA = `
 	CREATE TABLE users (
@@ -26,6 +26,10 @@ const SCHEMA = `
 		name TEXT NOT NULL,
 		normalized TEXT NOT NULL UNIQUE,
 		status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active','follow_up','discharged')),
+		consent_signed_at TEXT,
+		consent_signed_source TEXT,
+		treatment_plan_completed_at TEXT,
+		treatment_plan_reviewed_at TEXT,
 		is_demo INTEGER NOT NULL DEFAULT 0,
 		created_at TEXT NOT NULL DEFAULT (datetime('now')),
 		updated_at TEXT NOT NULL DEFAULT (datetime('now'))
@@ -118,9 +122,64 @@ function open(): Database.Database {
 	return database;
 }
 
+function addColumns(
+	database: Database.Database,
+	table: string,
+	columns: Record<string, string>
+): void {
+	const existing = database.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[];
+	const names = new Set(existing.map((column) => column.name));
+	for (const [name, definition] of Object.entries(columns)) {
+		if (!names.has(name)) {
+			database.exec(`ALTER TABLE ${table} ADD COLUMN ${name} ${definition}`);
+		}
+	}
+}
+
+function migrateReminderDefaults(database: Database.Database): void {
+	const row = database
+		.prepare("SELECT value FROM settings WHERE key = 'reminder_settings'")
+		.get() as { value: string } | undefined;
+	if (!row) return;
+	try {
+		const parsed = JSON.parse(row.value) as { staleDays?: number };
+		if (parsed.staleDays === 60) {
+			parsed.staleDays = 30;
+			database
+				.prepare("UPDATE settings SET value = ? WHERE key = 'reminder_settings'")
+				.run(JSON.stringify(parsed));
+		}
+	} catch {
+		// Leave malformed settings alone; getReminderSettings will fall back to defaults.
+	}
+}
+
 function migrate(database: Database.Database): void {
-	const version = database.pragma('user_version', { simple: true }) as number;
+	let version = database.pragma('user_version', { simple: true }) as number;
 	if (version === SCHEMA_VERSION) return;
+
+	if (version === 3) {
+		addColumns(database, 'clients', {
+			consent_signed_at: 'TEXT',
+			consent_signed_source: 'TEXT'
+		});
+		database.pragma('user_version = 4');
+		version = 4;
+	}
+
+	if (version === 4) {
+		addColumns(database, 'clients', {
+			treatment_plan_completed_at: 'TEXT',
+			treatment_plan_reviewed_at: 'TEXT'
+		});
+		migrateReminderDefaults(database);
+		database.pragma(`user_version = ${SCHEMA_VERSION}`);
+		return;
+	}
+
+	if (version > SCHEMA_VERSION) {
+		throw new Error(`Database schema ${version} is newer than this app (${SCHEMA_VERSION}).`);
+	}
 
 	database.exec(`
 		DROP TABLE IF EXISTS appointment_clients;
@@ -152,7 +211,7 @@ function ensureDefaults(database: Database.Database): void {
 				syncTime: '03:30'
 			})
 		],
-		['reminder_settings', JSON.stringify({ delayDays: 3, time: '17:00', staleDays: 60 })],
+		['reminder_settings', JSON.stringify({ delayDays: 3, time: '17:00', staleDays: 30 })],
 		['last_sync_at', ''],
 		['last_sync_status', ''],
 		['last_sync_error', ''],
@@ -471,7 +530,42 @@ function seed(database: Database.Database): void {
 		});
 	}
 
+	// Demo variety: most clients already have consent, a few still need it.
+	const consentSigned = [
+		'Avery N.',
+		'Samir A.',
+		'Kira W.',
+		'Nora E.',
+		'Riya P.',
+		'Diego R.',
+		'Jordan O.',
+		'Tessa L.'
+	];
+	const markConsent = database.prepare(
+		"UPDATE clients SET consent_signed_at = datetime('now','-30 days'), consent_signed_source = 'demo' WHERE normalized = ?"
+	);
+	for (const name of consentSigned) markConsent.run(normalizeName(name));
 
+	// Demo treatment plans: most are active; a few show missing, quarterly, and annual states.
+	const planDone: { name: string; completedDays: number; reviewedDays: number }[] = [
+		{ name: 'Avery N.', completedDays: 100, reviewedDays: 100 },
+		{ name: 'Samir A.', completedDays: 370, reviewedDays: 370 },
+		{ name: 'Kira W.', completedDays: 30, reviewedDays: 30 },
+		{ name: 'Nora E.', completedDays: 80, reviewedDays: 80 },
+		{ name: 'Priya S.', completedDays: 30, reviewedDays: 30 },
+		{ name: 'Jordan O.', completedDays: 10, reviewedDays: 10 },
+		{ name: 'Tessa L.', completedDays: 10, reviewedDays: 10 },
+		{ name: 'Riya P.', completedDays: 30, reviewedDays: 30 },
+		{ name: 'Diego R.', completedDays: 30, reviewedDays: 30 }
+	];
+	const markPlan = database.prepare(
+		'UPDATE clients SET treatment_plan_completed_at = ?, treatment_plan_reviewed_at = ? WHERE normalized = ?'
+	);
+	for (const plan of planDone) {
+		const completed = new Date(Date.now() - plan.completedDays * 86400000).toISOString();
+		const reviewed = new Date(Date.now() - plan.reviewedDays * 86400000).toISOString();
+		markPlan.run(completed, reviewed, normalizeName(plan.name));
+	}
 }
 
 const globalRef = globalThis as unknown as { __daybook_db?: Database.Database };

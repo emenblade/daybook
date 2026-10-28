@@ -3,6 +3,7 @@ import { daysSinceTs } from '#lib/dates.ts';
 import { sharedActions } from '#lib/server/actions.ts';
 import { appointmentsForClient, clientStats, getClient } from '#lib/server/repo.ts';
 import { getReminderSettings } from '#lib/server/settings.ts';
+import { dueTreatmentAction, treatmentPlanInfo } from '#lib/treatment.ts';
 import type { PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ params }) => {
@@ -16,8 +17,16 @@ export const load: PageServerLoad = async ({ params }) => {
 	const needsReview =
 		client.status === 'active' &&
 		daysSince !== null &&
-		daysSince > staleDays &&
+		daysSince >= staleDays &&
 		stats.nextSessionAt === null;
+	const planInfo = treatmentPlanInfo(
+		client.treatment_plan_completed_at,
+		client.treatment_plan_reviewed_at
+	);
+	const planDue = dueTreatmentAction(
+		client.treatment_plan_completed_at,
+		client.treatment_plan_reviewed_at
+	);
 
 	return {
 		client,
@@ -25,6 +34,10 @@ export const load: PageServerLoad = async ({ params }) => {
 		daysSince,
 		staleDays,
 		needsReview,
+		planInfo,
+		planDue,
+		planMissing: !client.treatment_plan_completed_at,
+		planOverdue: !client.treatment_plan_completed_at && stats.totalSessions >= 3,
 		appointments: appointmentsForClient(id, 150)
 	};
 };

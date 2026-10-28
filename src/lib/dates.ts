@@ -89,6 +89,13 @@ export function fmtDateShort(iso: string): string {
 	return `${MONTH_NAMES[d.getMonth()].slice(0, 3)} ${d.getDate()}`;
 }
 
+/** Month/day for the current year, with the year appended for other years. */
+export function fmtDateSmart(iso: string): string {
+	const d = parseISO(iso);
+	const short = fmtDateShort(iso);
+	return d.getFullYear() === new Date().getFullYear() ? short : `${short}, ${d.getFullYear()}`;
+}
+
 export function fmtWeekday(iso: string): string {
 	return DAY_NAMES[parseISO(iso).getDay()].slice(0, 3);
 }

@@ -14,18 +14,27 @@ iCloud calendar and needs to stay ahead of session notes and client follow-ups.
   cleanup list; after 5pm the desk screen shows a reminder banner until notes are
   marked done in Jane. Work meetings and breaks are shown separately and never
   generate reminders.
-- **Client follow-up.** Anyone not seen in over two months (configurable) is
-  surfaced so she can mark them **Follow up** or **Discharged**.
-
-> **History limitation:** Jane's iCal feed starts about 30 days before today.
-> The app cannot see clients or sessions older than that. Follow-up detection
-> (60 days) and year-to-date hours become fully accurate only after the app has
-> been running/accumulating history. If Jane can export historical appointments
-> or a client list, we can add an import to seed that history.
+- **Long-term reminders.** A client with no future booking and no completed
+  session for 30+ days (adjustable, 1–365) is surfaced so she can mark them
+  **Follow up** or **Discharged**. Consent forms and treatment-plan paperwork
+  live in the same long-term list.
+- **Consent forms.** Every client has a consent-for-service checkbox. It stays on
+  session cards and in the long-term list until marked signed.
+- **Treatment plans.** A plan is due by the end of the client's third session.
+  If it is still missing, it stays on future cards and in the long-term list.
+  Plans are reviewed every 90 days and remade every year; when a booked session
+  falls within a week of the due date (or later), the long-term list shows the
+  upcoming review and the session card gets the matching checkbox.
 - **Hours.** Totals by week, month, and year, plus a session-type breakdown and
   CSV export. Couples/group sessions are counted once, not once per attendee.
 - **LAN-only.** One Docker container + one SQLite file. The desk device reaches it
   over WireGuard (or Tailscale). Nothing is exposed to the internet.
+
+> **History limitation:** Jane's iCal feed starts about 30 days before today.
+> The app cannot see clients or sessions older than that. Follow-up detection
+> (30 days) and year-to-date hours become fully accurate only after the app has
+> been running/accumulating history. If Jane can export historical appointments
+> or a client list, we can add an import to seed that history.
 
 ## The two sides
 
@@ -43,8 +52,9 @@ npm run dev -- --open
 
 PIN: `1111` (change it in **Settings**). On first run the database is seeded with
 three months of realistic demo data: today's board, unconfirmed sessions, two
-clients who need review, and upcoming appointments. The seed is relative to the
-day you first run it.
+clients who need follow-up, missing and due treatment plans, unsigned consent
+forms, and upcoming appointments. The seed is relative to the day you first run
+it.
 
 When you are ready for real data: **Settings → Remove demo data**, then connect
 the calendar on **Sync**.
@@ -110,9 +120,18 @@ start as **To confirm** and the 3-day reminder clock applies.
   confirmations inline. After the reminder time (default 5:00 PM, configurable)
   a banner appears on the desk screen while anything is outstanding — no email,
   no push service, nothing else to break.
-- **Stale clients:** last *completed* session older than 60 days, no future
-  booking, status still active. Marking **Follow up** or **Discharged** clears
-  the alert and is visible in the client history.
+- **Follow-up:** last *completed* session at least 30 days ago (configurable),
+  no future booking, status still active. Marking **Follow up** or **Discharged**
+  clears the alert and is visible in the client history. A future booking always
+  suppresses the follow-up reminder.
+- **Treatment plans:** missing after the third completed session, or due for a
+  90-day review / annual remake. The long-term list shows upcoming reviews when a
+  booked session falls within a week of the due date or later; the session card
+  carries the matching checkbox. Missing plans stay on every future card until
+  marked complete.
+- **Consent forms:** unsigned consent stays on session cards and in the long-term
+  list until marked. Marking is available from the desk view, client list, or
+  client detail.
 
 ## Deploy on Unraid
 

@@ -2,6 +2,7 @@ import {
 	dayRangeISO,
 	daysSinceTs,
 	monthRangeISO,
+	todayISO,
 	tsToDate
 } from '#lib/dates.ts';
 import type {
@@ -18,8 +19,16 @@ import type {
 	SessionType,
 	SyncRun,
 	TypeHours,
-	User
+	User,
+	FollowUpReminder,
+	TreatmentPlanReminder
 } from '#lib/types.ts';
+import {
+	dueTreatmentAction,
+	missingPlanAction,
+	treatmentActionForSession,
+	type TreatmentActionKind
+} from '#lib/treatment.ts';
 import { db } from './db.ts';
 
 type AppointmentRow = Omit<Appointment, 'participants'>;
@@ -32,8 +41,15 @@ function attachParticipants(rows: AppointmentRow[]): Appointment[] {
 	const placeholders = rows.map(() => '?').join(',');
 	const parts = db
 		.prepare(
-			`SELECT ac.appointment_id AS appointment_id, c.id, c.name
-			 FROM appointment_clients ac JOIN clients c ON c.id = ac.client_id
+			`SELECT ac.appointment_id AS appointment_id, c.id, c.name, c.consent_signed_at,
+				c.treatment_plan_completed_at, c.treatment_plan_reviewed_at,
+				(SELECT count(*) FROM appointment_clients ac2
+					JOIN appointments a2 ON a2.id = ac2.appointment_id
+					WHERE ac2.client_id = c.id AND a2.status = 'completed' AND a2.start_ts < a.start_ts)
+					AS prior_completed_sessions
+			 FROM appointment_clients ac
+			 JOIN clients c ON c.id = ac.client_id
+			 JOIN appointments a ON a.id = ac.appointment_id
 			 WHERE ac.appointment_id IN (${placeholders})
 			 ORDER BY c.name`
 		)
@@ -41,11 +57,22 @@ function attachParticipants(rows: AppointmentRow[]): Appointment[] {
 		appointment_id: number;
 		id: number;
 		name: string;
+		consent_signed_at: string | null;
+		treatment_plan_completed_at: string | null;
+		treatment_plan_reviewed_at: string | null;
+		prior_completed_sessions: number;
 	}[];
 	const map = new Map<number, Participant[]>();
 	for (const part of parts) {
 		const list = map.get(part.appointment_id) ?? [];
-		list.push({ id: part.id, name: part.name });
+		list.push({
+			id: part.id,
+			name: part.name,
+			consent_signed_at: part.consent_signed_at,
+			treatment_plan_completed_at: part.treatment_plan_completed_at,
+			treatment_plan_reviewed_at: part.treatment_plan_reviewed_at,
+			prior_completed_sessions: part.prior_completed_sessions
+		});
 		map.set(part.appointment_id, list);
 	}
 	return rows.map((row) => ({ ...row, participants: map.get(row.id) ?? [] }));
@@ -73,7 +100,9 @@ export function getPinHash(id: number): string | undefined {
 /* ---------------- clients ---------------- */
 
 const CLIENT_SUMMARY_SELECT = `
-	SELECT c.id, c.name, c.normalized, c.status, c.is_demo, c.created_at, c.updated_at,
+	SELECT c.id, c.name, c.normalized, c.status, c.consent_signed_at, c.consent_signed_source,
+		c.treatment_plan_completed_at, c.treatment_plan_reviewed_at,
+		c.is_demo, c.created_at, c.updated_at,
 		(SELECT max(a.start_ts) FROM appointment_clients ac JOIN appointments a ON a.id = ac.appointment_id
 			WHERE ac.client_id = c.id AND a.status = 'completed') AS last_seen_at,
 		(SELECT count(*) FROM appointment_clients ac JOIN appointments a ON a.id = ac.appointment_id
@@ -96,12 +125,21 @@ function withDays(row: ClientRow): ClientSummary {
 	};
 }
 
-export function listClients(opts: { search?: string; status?: ClientStatus | 'all' } = {}): ClientSummary[] {
+export function listClients(opts: {
+	search?: string;
+	status?: ClientStatus | 'all';
+	consent?: 'due' | 'signed' | 'all';
+} = {}): ClientSummary[] {
 	const where: string[] = [];
 	const params: (string | number)[] = [new Date().toISOString()];
 	if (opts.status && opts.status !== 'all') {
 		where.push('c.status = ?');
 		params.push(opts.status);
+	}
+	if (opts.consent === 'due') {
+		where.push("c.consent_signed_at IS NULL AND c.status != 'discharged'");
+	} else if (opts.consent === 'signed') {
+		where.push('c.consent_signed_at IS NOT NULL');
 	}
 	if (opts.search) {
 		where.push('c.name LIKE ?');
@@ -125,6 +163,38 @@ export function setClientStatus(id: number, status: ClientStatus): void {
 	);
 }
 
+export function setClientConsent(id: number, signed: boolean, source: string): void {
+	db.prepare(
+		"UPDATE clients SET consent_signed_at = ?, consent_signed_source = ?, updated_at = datetime('now') WHERE id = ?"
+	).run(signed ? new Date().toISOString() : null, signed ? source : null, id);
+}
+
+export function setTreatmentPlan(id: number, action: TreatmentActionKind): void {
+	const now = new Date().toISOString();
+	if (action === 'quarterly') {
+		db.prepare(
+			"UPDATE clients SET treatment_plan_reviewed_at = ?, updated_at = datetime('now') WHERE id = ?"
+		).run(now, id);
+		return;
+	}
+	db.prepare(
+		"UPDATE clients SET treatment_plan_completed_at = ?, treatment_plan_reviewed_at = ?, updated_at = datetime('now') WHERE id = ?"
+	).run(now, now, id);
+}
+
+export function clientsWithoutConsent(limit = 8): ClientSummary[] {
+	return listClients({ consent: 'due' }).slice(0, limit);
+}
+
+export function countClientsWithoutConsent(): number {
+	const row = db
+		.prepare(
+			"SELECT count(*) AS c FROM clients WHERE consent_signed_at IS NULL AND status != 'discharged'"
+		)
+		.get() as { c: number };
+	return row.c;
+}
+
 export function findOrCreateClient(name: string, normalized: string, isDemo = false): number {
 	const existing = db.prepare('SELECT id FROM clients WHERE normalized = ?').get(normalized) as
 		| { id: number }
@@ -136,16 +206,114 @@ export function findOrCreateClient(name: string, normalized: string, isDemo = fa
 	return Number(result.lastInsertRowid);
 }
 
-export function staleClients(days = 60, limit = 25): ClientSummary[] {
+export function staleClients(days = 30, limit = 25): ClientSummary[] {
 	return listClients({ status: 'active' })
 		.filter(
 			(client) =>
 				client.days_since_seen !== null &&
-				client.days_since_seen > days &&
+				client.days_since_seen >= days &&
 				client.next_session_at === null
 		)
 		.sort((a, b) => (b.days_since_seen ?? 0) - (a.days_since_seen ?? 0))
 		.slice(0, limit);
+}
+
+export interface LongTermReminders {
+	followUps: FollowUpReminder[];
+	plans: TreatmentPlanReminder[];
+}
+
+function futureSessionsByClient(): Map<number, string[]> {
+	const rows = db
+		.prepare(
+			`SELECT ac.client_id AS client_id, a.start_ts
+			 FROM appointments a JOIN appointment_clients ac ON ac.appointment_id = a.id
+			 WHERE a.status = 'scheduled' AND a.start_ts > ?
+			 ORDER BY a.start_ts`
+		)
+		.all(new Date().toISOString()) as { client_id: number; start_ts: string }[];
+	const map = new Map<number, string[]>();
+	for (const row of rows) {
+		const list = map.get(row.client_id) ?? [];
+		list.push(row.start_ts);
+		map.set(row.client_id, list);
+	}
+	return map;
+}
+
+export function longTermReminders(staleDays: number): LongTermReminders {
+	const clients = listClients({ status: 'all' }).filter(
+		(client) => client.status !== 'discharged'
+	);
+	const futureSessions = futureSessionsByClient();
+	const followUps: FollowUpReminder[] = [];
+	const plans: TreatmentPlanReminder[] = [];
+
+	for (const client of clients) {
+		if (
+			client.status === 'active' &&
+			client.last_seen_at &&
+			client.days_since_seen !== null &&
+			client.days_since_seen >= staleDays &&
+			client.next_session_at === null
+		) {
+			followUps.push({ kind: 'follow_up', client });
+		}
+
+		if (!client.treatment_plan_completed_at) {
+			if (client.total_sessions >= 3) {
+				plans.push({
+					kind: 'treatment_plan',
+					client,
+					action: missingPlanAction(),
+					dueOn: null,
+					sessionAt: client.next_session_at,
+					overdue: true
+				});
+			}
+			continue;
+		}
+
+		const sessions = futureSessions.get(client.id) ?? [];
+		let action = null;
+		let sessionAt: string | null = null;
+		for (const startTs of sessions) {
+			const candidate = treatmentActionForSession({
+				completedAt: client.treatment_plan_completed_at,
+				reviewedAt: client.treatment_plan_reviewed_at,
+				priorCompletedSessions: client.total_sessions,
+				sessionStartTs: startTs
+			});
+			if (candidate) {
+				action = candidate;
+				sessionAt = startTs;
+				break;
+			}
+		}
+		if (!action && sessions.length === 0) {
+			action = dueTreatmentAction(
+				client.treatment_plan_completed_at,
+				client.treatment_plan_reviewed_at
+			);
+		}
+		if (!action) continue;
+		plans.push({
+			kind: 'treatment_plan',
+			client,
+			action,
+			dueOn: action.dueOn,
+			sessionAt,
+			overdue: action.dueOn ? action.dueOn <= todayISO() : true
+		});
+	}
+
+	followUps.sort((a, b) => (b.client.days_since_seen ?? 0) - (a.client.days_since_seen ?? 0));
+	plans.sort((a, b) => {
+		const aDue = a.dueOn ?? '0000-00-00';
+		const bDue = b.dueOn ?? '0000-00-00';
+		return aDue.localeCompare(bDue);
+	});
+	return { followUps, plans };
 }
 
 export interface ClientStats {

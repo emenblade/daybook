@@ -16,7 +16,7 @@ reminder banner. No special hardware needed.
 - The NAS's WireGuard IP (e.g. `10.6.0.2`) and Daybook port (`8484` by default).
 
 The Daybook kiosk itself is locked down: it has no admin links or bottom
-navigation, only today's plan, the cleanup list, clients to review, and a Refresh
+navigation, only today's plan, the cleanup list, long-term reminders, and a Refresh
 button in e-ink mode.
 
 ---

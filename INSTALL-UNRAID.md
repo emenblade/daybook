@@ -55,7 +55,7 @@ The container runs as root inside the container (same as StreamAssets), so the d
 1. Open `http://<nas-ip>:8484`.
 2. Sign in with PIN **1111**.
 3. **Settings:** change the PIN, set the timezone/name, and adjust the 3-day
-   reminder and 60-day follow-up thresholds if desired.
+   reminder and 30-day follow-up thresholds if desired.
 4. **Settings → Remove demo data**.
 5. **Sync → Calendar source → ICS feed URL** → paste the Jane link → **Save** →
    **Sync now**.
@@ -66,7 +66,7 @@ it like a password and do not put it in screenshots or the repo. The calendar
 guide has the optional private iCloud path.
 
 > **History note:** Jane's iCal feed starts about 30 days before the current
-> date. Follow-up detection (60 days) and year-to-date hours become fully
+> date. Follow-up detection (30 days) and year-to-date hours become fully
 > accurate as Daybook accumulates history. If Jane can export historical
 > appointments/client data, we can add an import.
 

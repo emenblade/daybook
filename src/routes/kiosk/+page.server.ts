@@ -13,7 +13,7 @@ export const load: PageServerLoad = async () => {
 		.filter((appointment) => appointment.status !== 'canceled')
 		.map((appointment) => ({ ...appointment, past: appointment.start_ts < now }));
 	const needsAttention = repo.appointmentsNeedingAttention(reminder.delayDays);
-	const stale = repo.staleClients(reminder.staleDays, 12);
+	const longTerm = repo.longTermReminders(reminder.staleDays);
 
 	return {
 		today,
@@ -22,8 +22,14 @@ export const load: PageServerLoad = async () => {
 		otherToday: repo.otherEventsForDay(today, ['work']),
 		needsAttention: needsAttention.slice(0, 15),
 		needsAttentionCount: needsAttention.length,
-		staleClients: stale.slice(0, 6),
-		staleCount: stale.length,
+		followUps: longTerm.followUps.slice(0, 6).map((item) => item.client),
+		followUpCount: longTerm.followUps.length,
+		planReminders: longTerm.plans.slice(0, 6),
+		planReminderCount: longTerm.plans.length,
+		planDueCount: longTerm.plans.filter((item) => item.overdue).length,
+		longTermCount: longTerm.followUps.length + longTerm.plans.length,
+		consentDue: repo.clientsWithoutConsent(8),
+		consentDueCount: repo.countClientsWithoutConsent(),
 		delayDays: reminder.delayDays,
 		staleDays: reminder.staleDays,
 		reminderTime: reminder.time,

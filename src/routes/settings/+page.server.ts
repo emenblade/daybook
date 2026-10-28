@@ -56,8 +56,8 @@ export const actions: Actions = {
 		if (!Number.isFinite(delayDays) || delayDays < 0 || delayDays > 30) {
 			return fail(400, { reminderError: 'Note reminder delay must be 0–30 days.' });
 		}
-		if (!Number.isFinite(staleDays) || staleDays < 7 || staleDays > 365) {
-			return fail(400, { reminderError: 'Follow-up threshold must be 7–365 days.' });
+		if (!Number.isFinite(staleDays) || staleDays < 1 || staleDays > 365) {
+			return fail(400, { reminderError: 'Follow-up threshold must be 1–365 days.' });
 		}
 		if (!/^\d{1,2}:\d{2}$/.test(time)) {
 			return fail(400, { reminderError: 'Reminder time must look like 17:00.' });

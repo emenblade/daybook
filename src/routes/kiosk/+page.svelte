@@ -3,13 +3,17 @@
 	import { invalidateAll } from '$app/navigation';
 	import { page } from '$app/state';
 	import { onMount } from 'svelte';
+	import ConsentCheck from '#lib/components/ConsentCheck.svelte';
 	import Logo from '#lib/components/Logo.svelte';
 	import OtherEvents from '#lib/components/OtherEvents.svelte';
 	import SessionTypePill from '#lib/components/SessionTypePill.svelte';
+	import TreatmentPlanCheck from '#lib/components/TreatmentPlanCheck.svelte';
 	import { participantNames } from '#lib/format.ts';
+	import { treatmentActionForSession } from '#lib/treatment.ts';
 	import {
 		daysSinceTs,
 		fmtDateLong,
+		fmtDateSmart,
 		fmtDuration,
 		fmtTsDate,
 		fmtTsDateTime,
@@ -28,7 +32,12 @@
 	let nowMinutes = $state(0);
 	const eink = $derived(page.url.searchParams.get('eink') === '1');
 	const reminderMinutes = $derived(parseTimeToMin(data.reminderTime) ?? 17 * 60);
-	const showReminder = $derived(data.needsAttentionCount > 0 && nowMinutes >= reminderMinutes);
+	const showReminder = $derived(
+		(data.needsAttentionCount > 0 ||
+			data.consentDueCount > 0 ||
+			data.planDueCount > 0) &&
+			nowMinutes >= reminderMinutes
+	);
 
 	onMount(() => {
 		const updateClock = () => {
@@ -66,6 +75,18 @@
 		if (appointment.status === 'no_show') return 'No-show';
 		if (appointment.past) return 'Past — needs confirmation';
 		return 'Upcoming';
+	}
+
+	function planActions(appointment: Appointment) {
+		return appointment.participants.flatMap((participant) => {
+			const action = treatmentActionForSession({
+				completedAt: participant.treatment_plan_completed_at,
+				reviewedAt: participant.treatment_plan_reviewed_at,
+				priorCompletedSessions: participant.prior_completed_sessions,
+				sessionStartTs: appointment.start_ts
+			});
+			return action ? [{ participant, action }] : [];
+		});
 	}
 </script>
 
@@ -142,6 +163,32 @@
 	</form>
 {/snippet}
 
+{#snippet planBox(appointment: Appointment, compact = false)}
+	{@const plans = planActions(appointment)}
+	{#if plans.length > 0}
+		<div
+			class="flex flex-wrap items-center gap-1.5 border-t border-violet-200 pt-2 dark:border-violet-900 {compact
+				? 'mt-1.5'
+				: 'mt-2'}"
+		>
+			<span
+				class="text-[10px] font-bold uppercase tracking-wide text-violet-700 dark:text-violet-300"
+				>Treatment plan</span
+			>
+			{#each plans as { participant, action } (participant.id)}
+				<TreatmentPlanCheck
+					clientId={participant.id}
+					{action}
+					name={participant.name}
+					{compact}
+					label={compact ? action.shortLabel : undefined}
+					showName={appointment.participants.length > 1}
+				/>
+			{/each}
+		</div>
+	{/if}
+{/snippet}
+
 <div
 	class="flex min-h-dvh flex-col bg-slate-100 text-slate-900 dark:bg-slate-950 dark:text-slate-100 {eink
 		? 'eink'
@@ -177,9 +224,25 @@
 		<div
 			class="border-b-2 border-amber-500 bg-amber-100 px-4 py-2.5 text-center text-sm font-bold text-amber-900 dark:border-amber-600 dark:bg-amber-950/60 dark:text-amber-200"
 		>
-			{data.needsAttentionCount} appointment{data.needsAttentionCount === 1 ? '' : 's'} still need
-			confirmation for more than {data.delayDays} days. Please enter the notes in Jane and clean up
-			the “Needs attention” list.
+			{#if data.needsAttentionCount > 0}
+				{data.needsAttentionCount} appointment{data.needsAttentionCount === 1 ? '' : 's'} still need
+				confirmation for more than {data.delayDays} days.
+			{/if}
+			{#if data.consentDueCount > 0}
+				{data.consentDueCount} consent form{data.consentDueCount === 1 ? '' : 's'} outstanding.
+			{/if}
+			{#if data.planDueCount > 0}
+				{data.planDueCount} treatment plan reminder{data.planDueCount === 1 ? '' : 's'} due.
+			{/if}
+			{#if data.needsAttentionCount > 0}
+				Please enter the notes in Jane and clean up the “Needs attention” list.
+			{/if}
+			{#if data.consentDueCount > 0}
+				Mark consent forms when the client is next in.
+			{/if}
+			{#if data.planDueCount > 0}
+				Complete treatment plan paperwork when the client is next in.
+			{/if}
 		</div>
 	{/if}
 
@@ -197,6 +260,7 @@
 
 				<ul class="mt-3 space-y-2">
 					{#each data.appointments as appointment (appointment.id)}
+						{@const unsigned = appointment.participants.filter((participant) => !participant.consent_signed_at)}
 						<li
 							class="rounded-2xl border-2 p-2.5 {appointment.status === 'scheduled' &&
 							appointment.past
@@ -247,6 +311,24 @@
 									{@render toggleButtons(appointment)}
 								</div>
 							</div>
+							{#if unsigned.length > 0}
+								<div
+									class="mt-2 flex flex-wrap items-center gap-1.5 border-t border-amber-200 pt-2 dark:border-amber-900"
+								>
+									<span
+										class="text-[10px] font-bold uppercase tracking-wide text-amber-700 dark:text-amber-300"
+										>Consent</span
+									>
+									{#each unsigned as participant (participant.id)}
+										<ConsentCheck
+											{participant}
+											compact
+											showName={appointment.participants.length > 1}
+										/>
+									{/each}
+								</div>
+							{/if}
+							{@render planBox(appointment)}
 						</li>
 					{:else}
 						<li
@@ -291,6 +373,7 @@
 					<ul class="mt-2 max-h-[34vh] space-y-2 overflow-y-auto pr-1 lg:max-h-none">
 						{#each data.needsAttention as appointment (appointment.id)}
 							{@const kiosk = { ...appointment, past: true }}
+							{@const unsigned = appointment.participants.filter((participant) => !participant.consent_signed_at)}
 							<li class="rounded-xl border border-slate-200 p-2.5 dark:border-slate-700">
 								<div class="flex flex-wrap items-center justify-between gap-2">
 									<div class="min-w-0">
@@ -317,6 +400,18 @@
 										{@render toggleButtons(kiosk, true)}
 									</div>
 								</div>
+								{#if unsigned.length > 0}
+									<div class="mt-1.5 flex flex-wrap gap-1">
+										{#each unsigned as participant (participant.id)}
+											<ConsentCheck
+												{participant}
+												compact
+												showName={appointment.participants.length > 1}
+											/>
+										{/each}
+									</div>
+								{/if}
+								{@render planBox(appointment, true)}
 							</li>
 						{/each}
 					</ul>
@@ -325,57 +420,151 @@
 
 			<section class="card p-3 lg:p-4">
 				<div class="flex items-center justify-between gap-2">
-					<h2 class="text-lg font-bold lg:text-xl">Clients to review</h2>
-					{#if data.staleCount > 0}
-						<span class="pill bg-rose-100 text-rose-700 dark:bg-rose-900/50 dark:text-rose-300"
-							>{data.staleCount}</span
+					<h2 class="text-lg font-bold lg:text-xl">Long-term reminders</h2>
+					{#if data.longTermCount > 0}
+						<span class="pill bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-300"
+							>{data.longTermCount}</span
 						>
 					{/if}
 				</div>
 				<p class="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
-					Not seen in over {data.staleDays} days. Discharge or follow up.
+					Follow up when there is no future booking, plus treatment plans.
 				</p>
-				{#if data.staleClients.length === 0}
-					<p class="mt-3 text-sm text-slate-400 dark:text-slate-500">
-						No clients need review.
+				{#if data.longTermCount === 0}
+					<p
+						class="mt-3 rounded-xl bg-emerald-50 p-3 text-sm font-medium text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300"
+					>
+						No follow-ups or treatment plans need attention.
+					</p>
+				{:else}
+					{#if data.followUpCount > 0}
+						<h3 class="mt-3 text-sm font-bold">
+							Follow up
+							<span class="ml-1 text-xs font-semibold text-slate-400">{data.followUpCount}</span>
+						</h3>
+						<p class="text-[11px] text-slate-500 dark:text-slate-400">
+							No future booking · at least {data.staleDays} days since last session.
+						</p>
+						<ul class="mt-1 max-h-[24vh] space-y-2 overflow-y-auto pr-1 lg:max-h-none">
+							{#each data.followUps as client (client.id)}
+								<li class="rounded-xl border border-slate-200 p-2.5 dark:border-slate-700">
+									<div class="flex flex-wrap items-center justify-between gap-2">
+										<div class="min-w-0">
+											<p class="truncate font-semibold">{client.name}</p>
+											<p class="text-[11px] text-slate-500 dark:text-slate-400">
+												Last seen {client.last_seen_at
+													? fmtTsDate(client.last_seen_at)
+													: 'never'}{client.days_since_seen !== null
+													? ` · ${client.days_since_seen}d`
+													: ''}
+											</p>
+										</div>
+										<div class="flex flex-wrap gap-1.5">
+											<form method="POST" action="?/setClientStatus" use:enhance>
+												<input type="hidden" name="id" value={client.id} />
+												<input type="hidden" name="status" value="follow_up" />
+												<button class="chip chip-amber">Follow up</button>
+											</form>
+											<form
+												method="POST"
+												action="?/setClientStatus"
+												use:enhance={({ cancel }) => {
+													if (!window.confirm(`Mark ${client.name} as discharged?`)) cancel();
+												}}
+											>
+												<input type="hidden" name="id" value={client.id} />
+												<input type="hidden" name="status" value="discharged" />
+												<button class="chip chip-slate">Discharged</button>
+											</form>
+										</div>
+									</div>
+								</li>
+							{/each}
+						</ul>
+					{/if}
+
+					{#if data.planReminderCount > 0}
+						<h3 class="mt-3 text-sm font-bold">
+							Treatment plans
+							<span class="ml-1 text-xs font-semibold text-slate-400"
+								>{data.planReminderCount}</span
+							>
+						</h3>
+						<ul class="mt-1 max-h-[32vh] space-y-2 overflow-y-auto pr-1 lg:max-h-none">
+							{#each data.planReminders as item (item.client.id)}
+								<li class="rounded-xl border border-slate-200 p-2.5 dark:border-slate-700">
+									<div class="flex flex-wrap items-center justify-between gap-2">
+										<div class="min-w-0">
+											<p class="truncate font-semibold">{item.client.name}</p>
+											<p class="text-[11px] text-slate-500 dark:text-slate-400">
+												{#if item.action.kind === 'complete'}
+													Treatment plan not complete
+												{:else}
+													{item.action.shortLabel} due {item.dueOn
+														? fmtDateSmart(item.dueOn)
+														: ''}
+												{/if}
+												{#if item.sessionAt}
+													· Session {fmtTsDate(item.sessionAt)}
+												{:else}
+													· No session booked
+												{/if}
+											</p>
+										</div>
+										<TreatmentPlanCheck
+											clientId={item.client.id}
+											action={item.action}
+											compact
+											label={item.action.kind === 'complete'
+												? 'Plan done'
+												: item.action.kind === 'quarterly'
+													? 'Review done'
+													: 'Remake done'}
+										/>
+									</div>
+								</li>
+							{/each}
+						</ul>
+					{/if}
+				{/if}
+			</section>
+
+			<section class="card p-3 lg:p-4">
+				<div class="flex items-center justify-between gap-2">
+					<h2 class="text-lg font-bold lg:text-xl">Consent forms</h2>
+					{#if data.consentDueCount > 0}
+						<span class="pill bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-300"
+							>{data.consentDueCount}</span
+						>
+					{/if}
+				</div>
+				<p class="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+					Clients without a signed consent for service form.
+				</p>
+				{#if data.consentDue.length === 0}
+					<p
+						class="mt-3 rounded-xl bg-emerald-50 p-3 text-sm font-medium text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300"
+					>
+						All consent forms are signed.
 					</p>
 				{:else}
 					<ul class="mt-2 max-h-[28vh] space-y-2 overflow-y-auto pr-1 lg:max-h-none">
-						{#each data.staleClients as client (client.id)}
-							<li class="rounded-xl border border-slate-200 p-2.5 dark:border-slate-700">
-								<div class="flex flex-wrap items-center justify-between gap-2">
-									<div class="min-w-0">
-										<p class="truncate font-semibold">{client.name}</p>
-										<p class="text-[11px] text-slate-500 dark:text-slate-400">
-											Last seen {client.last_seen_at
-												? fmtTsDate(client.last_seen_at)
-												: 'never'}{client.days_since_seen !== null
-												? ` · ${client.days_since_seen}d`
-												: ''}
-										</p>
-									</div>
-									<div class="flex flex-wrap gap-1.5">
-										<form method="POST" action="?/setClientStatus" use:enhance>
-											<input type="hidden" name="id" value={client.id} />
-											<input type="hidden" name="status" value="follow_up" />
-											<button class="chip chip-amber">Follow up</button>
-										</form>
-										<form
-											method="POST"
-											action="?/setClientStatus"
-											use:enhance={({ cancel }) => {
-												if (!window.confirm(`Mark ${client.name} as discharged?`)) cancel();
-											}}
-										>
-											<input type="hidden" name="id" value={client.id} />
-											<input type="hidden" name="status" value="discharged" />
-											<button class="chip chip-slate">Discharged</button>
-										</form>
-									</div>
-								</div>
+						{#each data.consentDue as client (client.id)}
+							<li class="flex items-center justify-between gap-2 rounded-xl border border-slate-200 p-2.5 dark:border-slate-700">
+								<a href="/clients/{client.id}" class="truncate text-sm font-semibold"
+									>{client.name}</a
+								>
+								<ConsentCheck participant={client} compact label="Consent" />
 							</li>
 						{/each}
 					</ul>
+					{#if data.consentDueCount > data.consentDue.length}
+						<a
+							href="/clients?consent=due"
+							class="mt-2 inline-block text-xs font-semibold text-sky-600 dark:text-sky-400"
+							>All {data.consentDueCount} clients</a
+						>
+					{/if}
 				{/if}
 			</section>
 		</div>

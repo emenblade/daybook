@@ -80,7 +80,7 @@ export function getReminderSettings(): ReminderSettings {
 	return {
 		delayDays: Number.isFinite(delayDays) && delayDays >= 0 ? Math.min(30, delayDays) : 3,
 		time,
-		staleDays: Number.isFinite(staleDays) && staleDays >= 7 ? Math.min(365, staleDays) : 60
+		staleDays: Number.isFinite(staleDays) && staleDays >= 1 ? Math.min(365, staleDays) : 30
 	};
 }
 

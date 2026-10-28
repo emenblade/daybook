@@ -3,19 +3,45 @@
 	import { fmtDuration, fmtTsDate, fmtTsTime } from '#lib/dates.ts';
 	import { participantNames, typeLabel } from '#lib/format.ts';
 	import type { Appointment } from '#lib/types.ts';
+	import { treatmentActionForSession } from '#lib/treatment.ts';
+	import ConsentCheck from './ConsentCheck.svelte';
+	import TreatmentPlanCheck from './TreatmentPlanCheck.svelte';
 	import SessionStatusPill from './SessionStatusPill.svelte';
 	import SessionTypePill from './SessionTypePill.svelte';
 
 	let {
 		appointment,
-		showDate = false
-	}: { appointment: Appointment; showDate?: boolean } = $props();
+		showDate = false,
+		showConsent = true,
+		showPlan = true
+	}: {
+		appointment: Appointment;
+		showDate?: boolean;
+		showConsent?: boolean;
+		showPlan?: boolean;
+	} = $props();
 
+	const unsigned = $derived(
+		appointment.participants.filter((participant) => !participant.consent_signed_at)
+	);
 	const future = $derived(
 		appointment.status === 'scheduled' && appointment.start_ts > new Date().toISOString()
 	);
 	const completed = $derived(appointment.status === 'completed');
 	const noShow = $derived(appointment.status === 'no_show');
+	const planActions = $derived(
+		appointment.status === 'canceled'
+			? []
+			: appointment.participants.flatMap((participant) => {
+					const action = treatmentActionForSession({
+						completedAt: participant.treatment_plan_completed_at,
+						reviewedAt: participant.treatment_plan_reviewed_at,
+						priorCompletedSessions: participant.prior_completed_sessions,
+						sessionStartTs: appointment.start_ts
+					});
+					return action ? [{ participant, action }] : [];
+				})
+	);
 </script>
 
 <li class="card p-3">
@@ -71,6 +97,44 @@
 				<input type="hidden" name="status" value={noShow ? 'scheduled' : 'no_show'} />
 				<button class="chip {noShow ? 'chip-rose' : 'chip-slate'}">No-show</button>
 			</form>
+		</div>
+	{/if}
+
+	{#if showConsent && appointment.status !== 'canceled' && unsigned.length > 0}
+		<div
+			class="mt-2 rounded-xl border border-amber-300 bg-amber-50 p-2 dark:border-amber-800 dark:bg-amber-950/30"
+		>
+			<p class="text-[10px] font-bold uppercase tracking-wide text-amber-700 dark:text-amber-300">
+				Consent form needed
+			</p>
+			<div class="mt-1 flex flex-wrap gap-1.5">
+				{#each unsigned as participant (participant.id)}
+					<ConsentCheck
+						{participant}
+						showName={appointment.participants.length > 1}
+					/>
+				{/each}
+			</div>
+		</div>
+	{/if}
+
+	{#if showPlan && planActions.length > 0}
+		<div
+			class="mt-2 rounded-xl border border-violet-300 bg-violet-50 p-2 dark:border-violet-800 dark:bg-violet-950/30"
+		>
+			<p class="text-[10px] font-bold uppercase tracking-wide text-violet-700 dark:text-violet-300">
+				Treatment plan
+			</p>
+			<div class="mt-1 flex flex-wrap gap-1.5">
+				{#each planActions as { participant, action } (participant.id)}
+					<TreatmentPlanCheck
+						clientId={participant.id}
+						{action}
+						name={participant.name}
+						showName={appointment.participants.length > 1}
+					/>
+				{/each}
+			</div>
 		</div>
 	{/if}
 </li>

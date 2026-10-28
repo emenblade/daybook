@@ -10,7 +10,7 @@ export const load: PageServerLoad = async () => {
 	const month = currentMonth();
 	const { from, to } = monthRangeISO(month);
 	const needsAttention = repo.appointmentsNeedingAttention(reminder.delayDays);
-	const stale = repo.staleClients(reminder.staleDays, 10);
+	const longTerm = repo.longTermReminders(reminder.staleDays);
 
 	return {
 		today,
@@ -19,8 +19,14 @@ export const load: PageServerLoad = async () => {
 		otherToday: repo.otherEventsForDay(today, ['work']),
 		needsAttention: needsAttention.slice(0, 5),
 		needsAttentionCount: needsAttention.length,
-		staleClients: stale.slice(0, 5),
-		staleCount: stale.length,
+		followUps: longTerm.followUps.slice(0, 5).map((item) => item.client),
+		followUpCount: longTerm.followUps.length,
+		planReminders: longTerm.plans.slice(0, 5),
+		planReminderCount: longTerm.plans.length,
+		planDueCount: longTerm.plans.filter((item) => item.overdue).length,
+		longTermCount: longTerm.followUps.length + longTerm.plans.length,
+		consentDue: repo.clientsWithoutConsent(5),
+		consentDueCount: repo.countClientsWithoutConsent(),
 		staleDays: reminder.staleDays,
 		hours: repo.hoursSummary(from, to),
 		lastSyncAt: getSetting('last_sync_at'),

@@ -1,3 +1,5 @@
+import type { TreatmentAction } from './treatment.ts';
+
 export type SessionStatus = 'scheduled' | 'completed' | 'no_show' | 'canceled';
 export type ClientStatus = 'active' | 'follow_up' | 'discharged';
 export type CalendarSource = 'ics' | 'caldav';
@@ -21,6 +23,10 @@ export interface User {
 export interface Participant {
 	id: number;
 	name: string;
+	consent_signed_at: string | null;
+	treatment_plan_completed_at: string | null;
+	treatment_plan_reviewed_at: string | null;
+	prior_completed_sessions: number;
 }
 
 export interface Client {
@@ -28,6 +34,10 @@ export interface Client {
 	name: string;
 	normalized: string;
 	status: ClientStatus;
+	consent_signed_at: string | null;
+	consent_signed_source: string | null;
+	treatment_plan_completed_at: string | null;
+	treatment_plan_reviewed_at: string | null;
 	is_demo: number;
 	created_at: string;
 	updated_at: string;
@@ -119,6 +129,20 @@ export interface ReminderSettings {
 	delayDays: number;
 	time: string;
 	staleDays: number;
+}
+
+export interface FollowUpReminder {
+	kind: 'follow_up';
+	client: ClientSummary;
+}
+
+export interface TreatmentPlanReminder {
+	kind: 'treatment_plan';
+	client: ClientSummary;
+	action: TreatmentAction;
+	dueOn: string | null;
+	sessionAt: string | null;
+	overdue: boolean;
 }
 
 export interface ParsedName {
