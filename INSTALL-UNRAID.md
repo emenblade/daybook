@@ -44,6 +44,9 @@ If you prefer a one-off test container:
 docker run -d --name daybook --restart unless-stopped \
   -p 8484:3000 \
   -e TZ=America/Edmonton \
+  -e DAYBOOK_SETUP_USERNAME=admin \
+  -e DAYBOOK_SETUP_PASSWORD='change-me-before-exposing' \
+  -e DAYBOOK_USER_NAME=Sara \
   -v /mnt/user/appdata/daybook:/data \
   ghcr.io/emenblade/daybook:latest
 ```
