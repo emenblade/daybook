@@ -14,14 +14,14 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 };
 
 export const actions: Actions = {
-	default: async ({ request, cookies }) => {
+	default: async ({ request, cookies, url }) => {
 		const form = await request.formData();
 		const pin = String(form.get('pin') ?? '');
 		const user = getPrimaryUser();
 		if (!user || !authenticate(user.id, pin)) {
 			return fail(400, { error: 'Wrong PIN. Try again.' });
 		}
-		createSessionCookie(cookies, user.id);
+		createSessionCookie(cookies, user.id, url.protocol === 'https:');
 		const next = String(form.get('next') ?? '/');
 		throw redirect(303, next.startsWith('/') ? next : '/');
 	}

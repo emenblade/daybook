@@ -20,7 +20,7 @@ function getSecret(): string {
 	return created.value;
 }
 
-export function createSessionCookie(cookies: Cookies, userId: number): void {
+export function createSessionCookie(cookies: Cookies, userId: number, secure = false): void {
 	const exp = Date.now() + MAX_AGE * 1000;
 	const payload = `${userId}.${exp}`;
 	const token = `${payload}.${hmac(payload, getSecret())}`;
@@ -28,7 +28,10 @@ export function createSessionCookie(cookies: Cookies, userId: number): void {
 		path: '/',
 		httpOnly: true,
 		sameSite: 'lax',
-		maxAge: MAX_AGE
+		maxAge: MAX_AGE,
+		// SvelteKit defaults this to true in production, which silently breaks
+		// login over plain HTTP on a LAN address. Follow the request protocol.
+		secure
 	});
 }
 
