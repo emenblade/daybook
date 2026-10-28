@@ -29,8 +29,9 @@ COPY --from=build /app/build ./build
 COPY --from=build /app/package.json ./package.json
 COPY server.js ./server.js
 
-RUN mkdir -p /data && chown node:node /data
-USER node
+RUN mkdir -p /data
+# Runs as root inside the container, matching the other Unraid containers
+# (e.g. StreamAssets), so the mounted data path does not need a host chown.
 
 EXPOSE 3000
 VOLUME ["/data"]

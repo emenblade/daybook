@@ -124,7 +124,6 @@ The app is published from GitHub as a container image:
 
 ```bash
 mkdir -p /mnt/user/appdata/daybook
-chown -R 1000:1000 /mnt/user/appdata/daybook
 cp "/mnt/user/share/calendar app/daybook.xml" \
    /boot/config/plugins/dockerMan/templates-user/daybook.xml
 ```

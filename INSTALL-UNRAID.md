@@ -5,7 +5,7 @@ Daybook is published as a container image here:
 - **GitHub repo:** https://github.com/emenblade/daybook
 - **Image:** `ghcr.io/emenblade/daybook:latest`
 - **Unraid template:** `daybook.xml`
-- **Local/offline fallback:** `daybook-local.xml` + `image/daybook-1.2.0-amd64.tar`
+- **Local/offline fallback:** `daybook-local.xml` + `image/daybook-1.2.1-amd64.tar`
 
 The app is LAN/VPN-only. Do not port-forward it to the internet.
 
@@ -21,8 +21,8 @@ calendar app/
 ├── daybook.xml                    ← install from GHCR (recommended)
 ├── daybook-local.xml              ← install from the offline tar
 ├── image/                         ← optional offline image
-│   ├── daybook-1.2.0-amd64.tar
-│   ├── daybook-1.2.0-amd64.tar.gz
+│   ├── daybook-1.2.1-amd64.tar
+│   ├── daybook-1.2.1-amd64.tar.gz
 │   └── SHA256SUMS
 ├── source/                        ← complete source (build/push to GitHub)
 ├── screenshots/
@@ -36,7 +36,6 @@ will pull it directly. No `docker load` is needed.
 
 ```bash
 mkdir -p /mnt/user/appdata/daybook
-chown -R 1000:1000 /mnt/user/appdata/daybook
 cp "/mnt/user/share/calendar app/daybook.xml" \
    /boot/config/plugins/dockerMan/templates-user/daybook.xml
 ```
@@ -55,8 +54,7 @@ docker run -d --name daybook --restart unless-stopped \
   ghcr.io/emenblade/daybook:latest
 ```
 
-The container runs as uid/gid **1000**; the data folder must be writable by it.
-If you see `SQLITE_CANTOPEN` in the log, the `chown` above was missed.
+The container runs as root inside the container (same as StreamAssets), so the data path does not need a host chown. If you see `SQLITE_CANTOPEN`, verify the `/data` volume mapping and `DATABASE_PATH`.
 
 ## 2. First run
 
@@ -83,10 +81,9 @@ guide has the optional private iCloud path.
 If GHCR is unreachable, the bundle includes the same image as a file:
 
 ```bash
-docker load -i "/mnt/user/share/calendar app/image/daybook-1.2.0-amd64.tar"
+docker load -i "/mnt/user/share/calendar app/image/daybook-1.2.1-amd64.tar"
 docker images | grep daybook
 mkdir -p /mnt/user/appdata/daybook
-chown -R 1000:1000 /mnt/user/appdata/daybook
 cp "/mnt/user/share/calendar app/daybook-local.xml" \
    /boot/config/plugins/dockerMan/templates-user/daybook-local.xml
 ```
@@ -118,7 +115,7 @@ docker compose up -d --build
 | Symptom | Fix |
 | --- | --- |
 | `pull access denied` / manifest unknown | The GitHub Actions image build has not finished, or the package is not public. Check Actions/GHCR. |
-| `SQLITE_CANTOPEN` | `chown -R 1000:1000 /mnt/user/appdata/daybook`. |
+| `SQLITE_CANTOPEN` | Check that `/mnt/user/appdata/daybook` is mapped to `/data` and `DATABASE_PATH=/data/daybook.db`; the container runs as root. |
 | Times are wrong | Set `TZ=America/Edmonton` (or her zone) and recreate the container. |
 | Jane sync fails | The Sync screen shows the error; confirm the link still works and has not been rotated. |
 | Kiosk asks for PIN constantly | Do not use private/incognito mode; Fully Kiosk should keep cookies. |

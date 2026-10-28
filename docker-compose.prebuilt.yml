@@ -1,4 +1,4 @@
-# Runs the prebuilt image (docker load -i daybook-1.2.0-amd64.tar first).
+# Runs the prebuilt image (docker load -i daybook-1.2.1-amd64.tar first).
 services:
   daybook:
     image: daybook:latest
