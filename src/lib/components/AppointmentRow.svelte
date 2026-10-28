@@ -3,6 +3,7 @@
 	import { fmtDuration, fmtTsDate, fmtTsTime } from '#lib/dates.ts';
 	import { participantNames, typeLabel } from '#lib/format.ts';
 	import type { Appointment } from '#lib/types.ts';
+	import { modalityChipClass, modalityLabel } from '#lib/session.ts';
 	import { treatmentActionForSession } from '#lib/treatment.ts';
 	import ConsentCheck from './ConsentCheck.svelte';
 	import TreatmentPlanCheck from './TreatmentPlanCheck.svelte';
@@ -72,6 +73,17 @@
 			<p class="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
 				{appointment.service || typeLabel(appointment.session_type)}
 			</p>
+			{#if appointment.modality !== 'unknown' || appointment.location || appointment.provider}
+				<div class="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[11px] text-slate-400 dark:text-slate-500">
+					{#if appointment.modality !== 'unknown'}
+						<span class="pill {modalityChipClass(appointment.modality)}"
+							>{modalityLabel(appointment.modality)}</span
+						>
+					{/if}
+					{#if appointment.location}<span>{appointment.location}</span>{/if}
+					{#if appointment.provider}<span>· {appointment.provider}</span>{/if}
+				</div>
+			{/if}
 		</div>
 		<div class="flex shrink-0 flex-col items-end gap-1">
 			<SessionStatusPill status={appointment.status} {future} />

@@ -1,8 +1,17 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
+	import { fmtTsDateTime } from '#lib/dates.ts';
 	import type { PageProps } from './$types';
 
 	let { data, form }: PageProps = $props();
+
+	const calendarSourceLabel = $derived(
+		data.calendarSource === 'ics'
+			? 'Jane ICS feed'
+			: data.calendarSource === 'caldav'
+				? 'iCloud CalDAV'
+				: 'Not connected'
+	);
 </script>
 
 <header class="mb-4">
@@ -136,6 +145,20 @@
 			<button class="btn-secondary w-full">Save reminders</button>
 		</form>
 
+	</section>
+
+	<section class="card space-y-3 p-4">
+		<h2 class="font-bold">Calendar</h2>
+		<p class="text-xs text-slate-500 dark:text-slate-400">
+			{data.calendarProvider} · {calendarSourceLabel} · daily sync at {data.calendarSyncTime}{#if data.lastSyncAt}
+				· last sync {fmtTsDateTime(data.lastSyncAt)}{/if}
+		</p>
+		{#if data.lastSyncStatus === 'error'}
+			<p class="text-xs font-medium text-rose-600 dark:text-rose-400">
+				The last sync failed. Open calendar settings for details.
+			</p>
+		{/if}
+		<a class="btn-secondary w-full" href="/sync">Calendar settings &amp; sync</a>
 	</section>
 
 	<section class="card space-y-3 p-4">

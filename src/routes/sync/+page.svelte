@@ -19,8 +19,13 @@
 </script>
 
 <header class="mb-4">
-	<p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Calendar sync</p>
-	<h1 class="text-xl font-bold">Connect Jane's calendar</h1>
+	<a href="/settings" class="text-xs font-semibold text-sky-600 dark:text-sky-400"
+		>&larr; Settings</a
+	>
+	<div class="mt-1">
+		<p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Calendar sync</p>
+		<h1 class="text-xl font-bold">Connect Jane's calendar</h1>
+	</div>
 </header>
 
 {#if data.lastSyncStatus === 'error'}
@@ -133,6 +138,21 @@
 		{/if}
 
 		<div>
+			<label class="label" for="providerName">Provider label</label>
+			<input
+				id="providerName"
+				class="input"
+				name="providerName"
+				value={data.config.providerName}
+				placeholder="Jane"
+			/>
+			<p class="mt-1 text-[11px] text-slate-400 dark:text-slate-500">
+				Shown on every session from this calendar so clients from different providers can be
+				distinguished.
+			</p>
+		</div>
+
+		<div>
 			<label class="label" for="syncTime">Daily sync time</label>
 			<input
 				id="syncTime"
@@ -186,10 +206,17 @@
 	<p class="text-xs text-slate-500 dark:text-slate-400">
 		The defaults match Jane's <code class="rounded bg-slate-100 px-1 dark:bg-slate-800"
 			>First L. (Service)</code
-		> titles and ignore <code class="rounded bg-slate-100 px-1 dark:bg-slate-800">Break - …</code>.
+		> titles, including file IDs like
+		<code class="rounded bg-slate-100 px-1 dark:bg-slate-800">DEC#113536</code> and optional date
+		prefixes, and ignore <code class="rounded bg-slate-100 px-1 dark:bg-slate-800">Break - …</code>.
 		Each name pattern needs a <code class="rounded bg-slate-100 px-1 dark:bg-slate-800"
 			>(?&lt;client&gt;...)</code
 		> group. Exclusion patterns win.
+	</p>
+	<p class="text-[11px] text-slate-400 dark:text-slate-500">
+		Need help writing rules? See <code class="rounded bg-slate-100 px-1 dark:bg-slate-800"
+			>CALENDAR-PARSING-AI-GUIDE.md</code
+		> in the source bundle for an AI-assisted workflow.
 	</p>
 	<form method="POST" action="?/saveRules" use:enhance class="space-y-2">
 		<textarea class="input font-mono text-xs" name="rules" rows="14">{JSON.stringify(data.rules, null, 2)}</textarea>
@@ -265,11 +292,17 @@
 	</ul>
 </section>
 
-<section class="card mt-4 overflow-hidden">
-	<h2 class="border-b border-slate-100 px-3 py-2 text-sm font-bold dark:border-slate-800">
-		Recent calendar events
-	</h2>
-	<ul class="divide-y divide-slate-100 text-sm dark:divide-slate-800">
+<details class="card mt-4 overflow-hidden">
+	<summary
+		class="cursor-pointer border-b border-slate-100 px-3 py-2 text-sm font-bold dark:border-slate-800"
+	>
+		Event diagnostics
+	</summary>
+	<p class="px-3 pt-2 text-[11px] text-slate-400 dark:text-slate-500">
+		Routine breaks are hidden. Real sessions that show as Other or Work need a parsing rule;
+		use “Test a title” above to check the exact wording.
+	</p>
+	<ul class="mt-1 divide-y divide-slate-100 text-sm dark:divide-slate-800">
 		{#each data.events as event (event.id)}
 			<li class="px-3 py-2">
 				<p class="flex items-center justify-between gap-2">
@@ -292,7 +325,11 @@
 				<p class="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
 					{fmtTsDateTime(event.start_ts)} · {event.source}
 					{#if event.service}· {event.service}{/if}
+					{#if event.location}· {event.location}{/if}
 				</p>
+				{#if event.parseReason}
+					<p class="text-[11px] text-amber-600 dark:text-amber-400">{event.parseReason}</p>
+				{/if}
 				{#if event.description}
 					<details class="mt-1">
 						<summary class="cursor-pointer text-[11px] text-slate-400">Description</summary>
@@ -307,7 +344,7 @@
 			</li>
 		{/each}
 	</ul>
-</section>
+</details>
 
 {#if data.trackingStart}
 	<p class="mt-4 text-[11px] text-slate-400 dark:text-slate-500">

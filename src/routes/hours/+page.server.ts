@@ -10,7 +10,13 @@ import {
 	weekLabel,
 	weekStart
 } from '#lib/dates.ts';
-import { hoursByType, hoursForWeeks, hoursSummary } from '#lib/server/repo.ts';
+import {
+	hoursByModality,
+	hoursByProvider,
+	hoursByType,
+	hoursForWeeks,
+	hoursSummary
+} from '#lib/server/repo.ts';
 import type { SessionType } from '#lib/types.ts';
 import type { PageServerLoad } from './$types';
 
@@ -40,6 +46,16 @@ export const load: PageServerLoad = async ({ url }) => {
 			count: found?.count ?? 0
 		};
 	});
+	const modalityData = hoursByModality(from, to);
+	const modalityRows = (['in_person', 'remote', 'unknown'] as const).map((modality) => {
+		const found = modalityData.find((row) => row.modality === modality);
+		return {
+			modality,
+			minutes: found?.minutes ?? 0,
+			count: found?.count ?? 0
+		};
+	});
+	const providerRows = hoursByProvider(from, to);
 
 	const months = Array.from({ length: 12 }, (_, index) => {
 		const ym = `${year}-${String(index + 1).padStart(2, '0')}`;
@@ -67,6 +83,8 @@ export const load: PageServerLoad = async ({ url }) => {
 		weekSummary,
 		yearSummary,
 		typeRows,
+		modalityRows,
+		providerRows,
 		months,
 		weeks: weeks.map((start, index) => ({
 			start,

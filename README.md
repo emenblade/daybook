@@ -8,8 +8,12 @@ iCloud calendar and needs to stay ahead of session notes and client follow-ups.
   families, and DBT sessions, and records every session: who, when, how long, how
   often, and how many hours.
 - **Desk device.** A touch-first `/kiosk` view shows today's plan. Each session
-  has two big confirmations: **No-show** and **Done + notes**. No note-taking —
-  just the paperwork status she needs to get paid.
+  has two big confirmations: **No-show** and **Done + notes**. Consent and
+  treatment-plan actions sit beside them. No note-taking — just the paperwork
+  status she needs to get paid.
+- **The whole day.** Breaks, meetings, errands, and vacation blocks are shown on
+  the day/desk view alongside sessions, but are never treated as client notes or
+  reminders.
 - **Never lose track.** Appointments that stay unconfirmed for 3 days land in a
   cleanup list; after 5pm the desk screen shows a reminder banner until notes are
   marked done in Jane. Work meetings and breaks are shown separately and never
@@ -25,8 +29,16 @@ iCloud calendar and needs to stay ahead of session notes and client follow-ups.
   Plans are reviewed every 90 days and remade every year; when a booked session
   falls within a week of the due date (or later), the long-term list shows the
   upcoming review and the session card gets the matching checkbox.
-- **Hours.** Totals by week, month, and year, plus a session-type breakdown and
-  CSV export. Couples/group sessions are counted once, not once per attendee.
+- **Where and how.** Every appointment keeps its calendar location, provider
+  label, and a derived **In person / Remote** modality. Hours and CSV exports can
+  be broken down by session type, modality, and provider.
+- **Hours.** Totals by week, month, and year, plus session-type, modality, and
+  provider breakdowns and CSV export. Couples/group sessions are counted once,
+  not once per attendee.
+- **Providers.** Each appointment records which calendar/provider it came from,
+  so a client shared across providers keeps one client record while each session
+  keeps its source. The current UI configures one source at a time; the data model
+  is ready for more.
 - **LAN-only.** One Docker container + one SQLite file. The desk device reaches it
   over WireGuard (or Tailscale). Nothing is exposed to the internet.
 
@@ -96,16 +108,22 @@ URL**). Anyone with the link can read it; the Jane feed is the simpler path.
 The defaults match the real Jane titles:
 
 - `First L. (Service)` → one client + service (In-Person, Video, Phone, WCB,
-  Pro Bono, Consultation, …).
+  Pro Bono, Consultation, …). Jane file IDs such as `DEC#113536` and a leading
+  appointment date are handled too.
 - Same-time **couples/family** events → one appointment with both names.
 - **DBT Group** events → one group appointment with all attendees and a Group
   badge; one confirmation, counted once.
 - `Break - …` → non-client. Work meetings/admin appear as muted “Other” entries;
   lunch/routine breaks are hidden. They never generate reminders.
 
-The **Sync** screen shows every incoming event with the client/service it parsed
+The **Sync** screen shows incoming events with the client/service it parsed
 (or its category), a rule editor (regex with a `(?<client>…)` group), and a test
 box. A `sample-calendar.ics` file is included for testing **Upload & parse**.
+
+For a new calendar, **`CALENDAR-PARSING-AI-GUIDE.md`** contains a prompt and
+schema for having an AI analyze a sanitized calendar export and generate the
+parse rules. Keep the generated profile private; the guide contains no client
+data.
 
 ### History on first sync
 

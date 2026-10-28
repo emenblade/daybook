@@ -7,13 +7,24 @@ import {
 	removeDemoData,
 	updateUserName
 } from '#lib/server/repo.ts';
-import { getReminderSettings, saveReminderSettings } from '#lib/server/settings.ts';
+import {
+	getCalendarConfig,
+	getReminderSettings,
+	getSetting,
+	saveReminderSettings
+} from '#lib/server/settings.ts';
 import type { PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async () => {
+	const calendar = getCalendarConfig();
 	return {
 		user: getPrimaryUser(),
 		reminder: getReminderSettings(),
+		calendarSource: calendar.source,
+		calendarProvider: calendar.providerName,
+		calendarSyncTime: calendar.syncTime,
+		lastSyncAt: getSetting('last_sync_at'),
+		lastSyncStatus: getSetting('last_sync_status'),
 		dbPath: DATABASE_PATH || 'data/daybook.db',
 		hasDemo: hasDemoData()
 	};

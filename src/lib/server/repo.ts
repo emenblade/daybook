@@ -14,6 +14,7 @@ import type {
 	DayCell,
 	EventCategory,
 	HoursSummary,
+	Modality,
 	Participant,
 	SessionStatus,
 	SessionType,
@@ -34,7 +35,8 @@ import { db } from './db.ts';
 type AppointmentRow = Omit<Appointment, 'participants'>;
 
 const APPT_COLS = `a.id, a.group_key, a.start_ts, a.end_ts, a.duration_min, a.title,
-	a.service, a.session_type, a.status, a.confirmed_at, a.confirmed_source, a.is_demo`;
+	a.service, a.session_type, a.status, a.confirmed_at, a.confirmed_source,
+	a.location, a.modality, a.provider, a.is_demo`;
 
 function attachParticipants(rows: AppointmentRow[]): Appointment[] {
 	if (rows.length === 0) return [];
@@ -110,7 +112,9 @@ const CLIENT_SUMMARY_SELECT = `
 		(SELECT COALESCE(SUM(a.duration_min), 0) FROM appointment_clients ac JOIN appointments a ON a.id = ac.appointment_id
 			WHERE ac.client_id = c.id AND a.status = 'completed') AS total_minutes,
 		(SELECT min(a.start_ts) FROM appointment_clients ac JOIN appointments a ON a.id = ac.appointment_id
-			WHERE ac.client_id = c.id AND a.status = 'scheduled' AND a.start_ts > ?) AS next_session_at
+			WHERE ac.client_id = c.id AND a.status = 'scheduled' AND a.start_ts > ?) AS next_session_at,
+		(SELECT group_concat(DISTINCT a.provider) FROM appointment_clients ac JOIN appointments a ON a.id = ac.appointment_id
+			WHERE ac.client_id = c.id AND a.provider IS NOT NULL) AS providers
 	FROM clients c
 `;
 
@@ -544,6 +548,42 @@ export function hoursByType(fromISO: string, toISO: string): TypeHours[] {
 	return rows;
 }
 
+export interface ModalityHours {
+	modality: Modality;
+	minutes: number;
+	count: number;
+}
+
+export function hoursByModality(fromISO: string, toISO: string): ModalityHours[] {
+	return db
+		.prepare(
+			`SELECT modality, SUM(duration_min) AS minutes, COUNT(*) AS count
+			 FROM appointments
+			 WHERE status = 'completed' AND start_ts >= ? AND start_ts < ?
+			 GROUP BY modality`
+		)
+		.all(fromISO, toISO) as ModalityHours[];
+}
+
+export interface ProviderHours {
+	provider: string;
+	minutes: number;
+	count: number;
+}
+
+export function hoursByProvider(fromISO: string, toISO: string): ProviderHours[] {
+	return db
+		.prepare(
+			`SELECT COALESCE(provider, 'Unknown') AS provider,
+				SUM(duration_min) AS minutes, COUNT(*) AS count
+			 FROM appointments
+			 WHERE status = 'completed' AND start_ts >= ? AND start_ts < ?
+			 GROUP BY COALESCE(provider, 'Unknown')
+			 ORDER BY minutes DESC`
+		)
+		.all(fromISO, toISO) as ProviderHours[];
+}
+
 export function hoursForWeeks(weekStarts: string[]): Map<string, HoursSummary> {
 	const map = new Map<string, HoursSummary>();
 	const stmt = db.prepare(
@@ -590,12 +630,13 @@ export function otherEventsForDay(dateISO: string, categories: EventCategory[]):
 	start_ts: string;
 	end_ts: string;
 	category: EventCategory;
+	location: string | null;
 }[] {
 	if (categories.length === 0) return [];
 	const { from, to } = dayRangeISO(dateISO);
 	return db
 		.prepare(
-			`SELECT id, summary, start_ts, end_ts, category FROM calendar_events
+			`SELECT id, summary, start_ts, end_ts, category, location FROM calendar_events
 			 WHERE event_kind = 'other' AND removed = 0 AND start_ts >= ? AND start_ts < ?
 			 AND category IN (${categories.map(() => '?').join(',')})
 			 ORDER BY start_ts`
@@ -606,6 +647,7 @@ export function otherEventsForDay(dateISO: string, categories: EventCategory[]):
 		start_ts: string;
 		end_ts: string;
 		category: EventCategory;
+		location: string | null;
 	}[];
 }
 
@@ -707,6 +749,9 @@ export interface AppointmentInput {
 	service: string;
 	sessionType: SessionType;
 	status: SessionStatus;
+	location: string | null;
+	modality: Appointment['modality'];
+	provider: string | null;
 	isDemo: boolean;
 	confirmedSource?: string | null;
 }
@@ -718,7 +763,8 @@ export function upsertAppointment(input: AppointmentInput): { id: number; create
 	if (existing) {
 		db.prepare(
 			`UPDATE appointments SET start_ts = ?, end_ts = ?, duration_min = ?, title = ?, service = ?,
-				session_type = ?, updated_at = datetime('now') WHERE id = ?`
+				session_type = ?, location = ?, modality = ?, provider = ?, updated_at = datetime('now')
+			 WHERE id = ?`
 		).run(
 			input.startTs,
 			input.endTs,
@@ -726,6 +772,9 @@ export function upsertAppointment(input: AppointmentInput): { id: number; create
 			input.title,
 			input.service,
 			input.sessionType,
+			input.location,
+			input.modality,
+			input.provider,
 			existing.id
 		);
 		return { id: existing.id, created: false };
@@ -735,8 +784,8 @@ export function upsertAppointment(input: AppointmentInput): { id: number; create
 		.prepare(
 			`INSERT INTO appointments
 				(group_key, start_ts, end_ts, duration_min, title, service, session_type, status,
-				 confirmed_at, confirmed_source, is_demo)
-			 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+				 confirmed_at, confirmed_source, location, modality, provider, is_demo)
+			 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
 		)
 		.run(
 			input.groupKey,
@@ -749,6 +798,9 @@ export function upsertAppointment(input: AppointmentInput): { id: number; create
 			input.status,
 			confirmed ? new Date().toISOString() : null,
 			confirmed ? (input.confirmedSource ?? 'import') : null,
+			input.location,
+			input.modality,
+			input.provider,
 			input.isDemo ? 1 : 0
 		);
 	return { id: Number(result.lastInsertRowid), created: true };

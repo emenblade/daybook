@@ -5,6 +5,7 @@ export type ClientStatus = 'active' | 'follow_up' | 'discharged';
 export type CalendarSource = 'ics' | 'caldav';
 export type SessionType = 'individual' | 'couples' | 'family' | 'group';
 export type EventKind = 'client' | 'other' | 'duplicate';
+export type Modality = 'in_person' | 'remote' | 'unknown';
 export type EventCategory =
 	| 'session'
 	| 'break'
@@ -55,6 +56,9 @@ export interface Appointment {
 	status: SessionStatus;
 	confirmed_at: string | null;
 	confirmed_source: string | null;
+	location: string | null;
+	modality: Modality;
+	provider: string | null;
 	is_demo: number;
 	participants: Participant[];
 }
@@ -65,6 +69,7 @@ export interface ClientSummary extends Client {
 	total_minutes: number;
 	next_session_at: string | null;
 	days_since_seen: number | null;
+	providers: string | null;
 }
 
 export interface CalendarEvent {
@@ -94,6 +99,7 @@ export interface OtherEvent {
 	start_ts: string;
 	end_ts: string;
 	category: EventCategory;
+	location: string | null;
 }
 
 export interface SyncRun {
@@ -122,6 +128,7 @@ export interface CalendarConfig {
 	caldavUsername: string;
 	caldavPassword: string;
 	caldavCalendar: string;
+	providerName: string;
 	syncTime: string;
 }
 

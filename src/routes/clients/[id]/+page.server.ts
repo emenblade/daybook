@@ -27,6 +27,10 @@ export const load: PageServerLoad = async ({ params }) => {
 		client.treatment_plan_completed_at,
 		client.treatment_plan_reviewed_at
 	);
+	const appointments = appointmentsForClient(id, 150);
+	const providers = [
+		...new Set(appointments.map((appointment) => appointment.provider).filter(Boolean))
+	] as string[];
 
 	return {
 		client,
@@ -38,7 +42,8 @@ export const load: PageServerLoad = async ({ params }) => {
 		planDue,
 		planMissing: !client.treatment_plan_completed_at,
 		planOverdue: !client.treatment_plan_completed_at && stats.totalSessions >= 3,
-		appointments: appointmentsForClient(id, 150)
+		providers,
+		appointments
 	};
 };
 

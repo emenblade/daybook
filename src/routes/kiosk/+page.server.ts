@@ -19,7 +19,7 @@ export const load: PageServerLoad = async () => {
 		today,
 		now,
 		appointments,
-		otherToday: repo.otherEventsForDay(today, ['work']),
+		otherToday: repo.otherEventsForDay(today, ['break', 'work', 'personal', 'vacation', 'other']),
 		needsAttention: needsAttention.slice(0, 15),
 		needsAttentionCount: needsAttention.length,
 		followUps: longTerm.followUps.slice(0, 6).map((item) => item.client),

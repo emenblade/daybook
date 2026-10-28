@@ -14,11 +14,21 @@ import { syncCalendar } from '#lib/server/sync.ts';
 import type { Actions, PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async () => {
+	const rules = getParseRules();
 	return {
 		config: getCalendarConfig(),
-		rules: getParseRules(),
+		rules,
 		runs: listSyncRuns(12),
-		events: listRecentEvents(40),
+		events: listRecentEvents(80)
+			.filter((event) => event.category !== 'break')
+			.slice(0, 30)
+			.map((event) => ({
+				...event,
+				parseReason:
+					event.event_kind === 'other' && event.category !== 'break'
+						? extractClient(event.summary ?? '', event.description ?? '', rules).reason
+						: null
+			})),
 		lastSyncAt: getSetting('last_sync_at'),
 		lastSyncStatus: getSetting('last_sync_status'),
 		lastSyncError: getSetting('last_sync_error'),
@@ -48,6 +58,7 @@ export const actions: Actions = {
 			caldavUsername: String(form.get('caldavUsername') ?? '').trim(),
 			caldavPassword: String(form.get('caldavPassword') ?? ''),
 			caldavCalendar: String(form.get('caldavCalendar') ?? '').trim(),
+			providerName: String(form.get('providerName') ?? '').trim() || 'Jane',
 			syncTime
 		};
 

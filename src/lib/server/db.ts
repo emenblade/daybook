@@ -3,6 +3,7 @@ import { mkdirSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { DATABASE_PATH } from '$app/env/private';
 import { addDays, parseISO, todayISO } from '#lib/dates.ts';
+import { modalityFor } from '#lib/session.ts';
 import type { SessionStatus, SessionType } from '#lib/types.ts';
 import { hashPin } from './crypto.ts';
 import {
@@ -11,7 +12,7 @@ import {
 	normalizeService
 } from './parse.ts';
 
-const SCHEMA_VERSION = 5;
+const SCHEMA_VERSION = 6;
 
 const SCHEMA = `
 	CREATE TABLE users (
@@ -47,6 +48,9 @@ const SCHEMA = `
 		status TEXT NOT NULL DEFAULT 'scheduled' CHECK (status IN ('scheduled','completed','no_show','canceled')),
 		confirmed_at TEXT,
 		confirmed_source TEXT,
+		location TEXT,
+		modality TEXT NOT NULL DEFAULT 'unknown' CHECK (modality IN ('in_person','remote','unknown')),
+		provider TEXT,
 		is_demo INTEGER NOT NULL DEFAULT 0,
 		created_at TEXT NOT NULL DEFAULT (datetime('now')),
 		updated_at TEXT NOT NULL DEFAULT (datetime('now'))
@@ -154,6 +158,36 @@ function migrateReminderDefaults(database: Database.Database): void {
 	}
 }
 
+function backfillAppointmentMetadata(database: Database.Database): void {
+	const rows = database
+		.prepare(
+			`SELECT a.id, a.title, a.service,
+				(SELECT location FROM calendar_events e
+				 WHERE e.group_key = a.group_key AND e.removed = 0 ORDER BY e.id LIMIT 1) AS location,
+				(SELECT calendar_name FROM calendar_events e
+				 WHERE e.group_key = a.group_key AND e.removed = 0 ORDER BY e.id LIMIT 1) AS calendar_name,
+				(SELECT source FROM calendar_events e
+				 WHERE e.group_key = a.group_key AND e.removed = 0 ORDER BY e.id LIMIT 1) AS source
+			 FROM appointments a`
+		)
+		.all() as {
+		id: number;
+		title: string;
+		service: string;
+		location: string | null;
+		calendar_name: string | null;
+		source: string | null;
+	}[];
+	const update = database.prepare(
+		'UPDATE appointments SET location = ?, modality = ?, provider = ? WHERE id = ?'
+	);
+	for (const row of rows) {
+		const location = row.location?.trim() || null;
+		const provider = row.calendar_name?.trim() || row.source || null;
+		update.run(location, modalityFor(row.service, location, row.title), provider, row.id);
+	}
+}
+
 function migrate(database: Database.Database): void {
 	let version = database.pragma('user_version', { simple: true }) as number;
 	if (version === SCHEMA_VERSION) return;
@@ -173,6 +207,17 @@ function migrate(database: Database.Database): void {
 			treatment_plan_reviewed_at: 'TEXT'
 		});
 		migrateReminderDefaults(database);
+		database.pragma('user_version = 5');
+		version = 5;
+	}
+
+	if (version === 5) {
+		addColumns(database, 'appointments', {
+			location: 'TEXT',
+			modality: "TEXT NOT NULL DEFAULT 'unknown'",
+			provider: 'TEXT'
+		});
+		backfillAppointmentMetadata(database);
 		database.pragma(`user_version = ${SCHEMA_VERSION}`);
 		return;
 	}
@@ -208,6 +253,7 @@ function ensureDefaults(database: Database.Database): void {
 				caldavUsername: '',
 				caldavPassword: '',
 				caldavCalendar: '',
+				providerName: 'Jane',
 				syncTime: '03:30'
 			})
 		],
@@ -300,8 +346,8 @@ function seed(database: Database.Database): void {
 	const insertAppointment = database.prepare(`
 		INSERT INTO appointments
 			(group_key, start_ts, end_ts, duration_min, title, service, session_type, status,
-			 confirmed_at, confirmed_source, is_demo)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+			 confirmed_at, confirmed_source, location, modality, provider, is_demo)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
 	`);
 	const insertParticipant = database.prepare(
 		'INSERT OR IGNORE INTO appointment_clients (appointment_id, client_id) VALUES (?, ?)'
@@ -329,6 +375,8 @@ function seed(database: Database.Database): void {
 			opts.status === 'completed' || opts.status === 'no_show'
 				? new Date(end.getTime() + 2 * 3600_000).toISOString()
 				: null;
+		const modality = modalityFor(opts.service, CLINIC, opts.service);
+		const location = modality === 'in_person' ? CLINIC : null;
 		const result = insertAppointment.run(
 			groupKey,
 			start.toISOString(),
@@ -339,7 +387,10 @@ function seed(database: Database.Database): void {
 			opts.type,
 			opts.status,
 			confirmed,
-			confirmed ? 'demo' : null
+			confirmed ? 'demo' : null,
+			location,
+			modality,
+			'Jane'
 		);
 		const appointmentId = Number(result.lastInsertRowid);
 		for (const name of opts.participants) {
@@ -349,7 +400,7 @@ function seed(database: Database.Database): void {
 				`demo-${opts.date}-${opts.startMin}-${slug(name)}`,
 				`${name} (${opts.service})`,
 				opts.status === 'completed' || opts.status === 'no_show' ? 'confirmed' : '',
-				CLINIC,
+				location,
 				start.toISOString(),
 				end.toISOString(),
 				'client',

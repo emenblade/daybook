@@ -9,6 +9,7 @@
 	import SessionTypePill from '#lib/components/SessionTypePill.svelte';
 	import TreatmentPlanCheck from '#lib/components/TreatmentPlanCheck.svelte';
 	import { participantNames } from '#lib/format.ts';
+	import { modalityChipClass, modalityLabel } from '#lib/session.ts';
 	import { treatmentActionForSession } from '#lib/treatment.ts';
 	import {
 		daysSinceTs,
@@ -163,30 +164,30 @@
 	</form>
 {/snippet}
 
-{#snippet planBox(appointment: Appointment, compact = false)}
+{#snippet paperworkButtons(appointment: Appointment, compact = false)}
+	{@const unsigned = appointment.participants.filter(
+		(participant) => !participant.consent_signed_at
+	)}
 	{@const plans = planActions(appointment)}
-	{#if plans.length > 0}
-		<div
-			class="flex flex-wrap items-center gap-1.5 border-t border-violet-200 pt-2 dark:border-violet-900 {compact
-				? 'mt-1.5'
-				: 'mt-2'}"
-		>
-			<span
-				class="text-[10px] font-bold uppercase tracking-wide text-violet-700 dark:text-violet-300"
-				>Treatment plan</span
-			>
-			{#each plans as { participant, action } (participant.id)}
-				<TreatmentPlanCheck
-					clientId={participant.id}
-					{action}
-					name={participant.name}
-					{compact}
-					label={compact ? action.shortLabel : undefined}
-					showName={appointment.participants.length > 1}
-				/>
-			{/each}
-		</div>
-	{/if}
+	{#each unsigned as participant (participant.id)}
+		<ConsentCheck
+			{participant}
+			variant="desk"
+			{compact}
+			showName={appointment.participants.length > 1}
+		/>
+	{/each}
+	{#each plans as { participant, action } (participant.id)}
+		<TreatmentPlanCheck
+			clientId={participant.id}
+			{action}
+			name={participant.name}
+			variant="desk"
+			{compact}
+			label={compact ? action.shortLabel : undefined}
+			showName={appointment.participants.length > 1}
+		/>
+	{/each}
 {/snippet}
 
 <div
@@ -260,7 +261,6 @@
 
 				<ul class="mt-3 space-y-2">
 					{#each data.appointments as appointment (appointment.id)}
-						{@const unsigned = appointment.participants.filter((participant) => !participant.consent_signed_at)}
 						<li
 							class="rounded-2xl border-2 p-2.5 {appointment.status === 'scheduled' &&
 							appointment.past
@@ -306,29 +306,23 @@
 									<p class="mt-0.5 text-[11px] text-slate-400 dark:text-slate-500">
 										{appointment.service}
 									</p>
-								</div>
-								<div class="flex flex-wrap gap-2">
-									{@render toggleButtons(appointment)}
+									{#if appointment.modality !== 'unknown' || appointment.location || appointment.provider}
+										<div class="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[11px] text-slate-400 dark:text-slate-500">
+											{#if appointment.modality !== 'unknown'}
+												<span class="pill {modalityChipClass(appointment.modality)}"
+													>{modalityLabel(appointment.modality)}</span
+												>
+											{/if}
+											{#if appointment.location}<span>{appointment.location}</span>{/if}
+											{#if appointment.provider}<span>· {appointment.provider}</span>{/if}
+										</div>
+									{/if}
 								</div>
 							</div>
-							{#if unsigned.length > 0}
-								<div
-									class="mt-2 flex flex-wrap items-center gap-1.5 border-t border-amber-200 pt-2 dark:border-amber-900"
-								>
-									<span
-										class="text-[10px] font-bold uppercase tracking-wide text-amber-700 dark:text-amber-300"
-										>Consent</span
-									>
-									{#each unsigned as participant (participant.id)}
-										<ConsentCheck
-											{participant}
-											compact
-											showName={appointment.participants.length > 1}
-										/>
-									{/each}
-								</div>
-							{/if}
-							{@render planBox(appointment)}
+							<div class="mt-2 flex flex-wrap gap-2">
+								{@render toggleButtons(appointment)}
+								{@render paperworkButtons(appointment)}
+							</div>
 						</li>
 					{:else}
 						<li
@@ -341,7 +335,7 @@
 
 				{#if data.otherToday.length > 0}
 					<div class="mt-3 border-t border-slate-100 pt-2 dark:border-slate-800">
-						<OtherEvents events={data.otherToday} title="Work calendar today" />
+						<OtherEvents events={data.otherToday} title="Also on the calendar" />
 					</div>
 				{/if}
 			</section>
@@ -373,8 +367,7 @@
 					<ul class="mt-2 max-h-[34vh] space-y-2 overflow-y-auto pr-1 lg:max-h-none">
 						{#each data.needsAttention as appointment (appointment.id)}
 							{@const kiosk = { ...appointment, past: true }}
-							{@const unsigned = appointment.participants.filter((participant) => !participant.consent_signed_at)}
-							<li class="rounded-xl border border-slate-200 p-2.5 dark:border-slate-700">
+								<li class="rounded-xl border border-slate-200 p-2.5 dark:border-slate-700">
 								<div class="flex flex-wrap items-center justify-between gap-2">
 									<div class="min-w-0">
 										{#if appointment.session_type === 'group'}
@@ -395,23 +388,23 @@
 												· {appointment.session_type === 'group' ? 'Group' : 'Couples'}
 											{/if}
 										</p>
+										{#if appointment.modality !== 'unknown' || appointment.location}
+											<p class="flex flex-wrap items-center gap-x-1.5 text-[11px] text-slate-400 dark:text-slate-500">
+												{#if appointment.modality !== 'unknown'}
+													<span class="pill {modalityChipClass(appointment.modality)}"
+														>{modalityLabel(appointment.modality)}</span
+													>
+												{/if}
+												{#if appointment.location}<span>{appointment.location}</span>{/if}
+												{#if appointment.provider}<span>· {appointment.provider}</span>{/if}
+											</p>
+										{/if}
 									</div>
 									<div class="flex flex-wrap gap-1.5">
 										{@render toggleButtons(kiosk, true)}
+										{@render paperworkButtons(appointment, true)}
 									</div>
 								</div>
-								{#if unsigned.length > 0}
-									<div class="mt-1.5 flex flex-wrap gap-1">
-										{#each unsigned as participant (participant.id)}
-											<ConsentCheck
-												{participant}
-												compact
-												showName={appointment.participants.length > 1}
-											/>
-										{/each}
-									</div>
-								{/if}
-								{@render planBox(appointment, true)}
 							</li>
 						{/each}
 					</ul>

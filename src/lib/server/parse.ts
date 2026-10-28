@@ -9,14 +9,49 @@ import type { EventCategory, ParseRules, ParsedName, SessionType } from '#lib/ty
  *
  * The Sync screen can still override these at runtime.
  */
+const LEGACY_SUMMARY_PATTERN =
+	'^(?<client>[\\p{L}][\\p{L}\'’.-]*(?:\\s+[\\p{L}][\\p{L}\'’.-]*)*\\s+\\p{L}\\.)\\s*(?:\\((?<service>.*)\\))?\\s*$';
+
 export const DEFAULT_PARSE_RULES: ParseRules = {
 	summaryPatterns: [
-		'^(?<client>[\\p{L}][\\p{L}\'’.-]*(?:\\s+[\\p{L}][\\p{L}\'’.-]*)*\\s+\\p{L}\\.)\\s*(?:\\((?<service>.*)\\))?\\s*$'
+		'^(?<client>[\\p{L}][\\p{L}\\p{N}\'’.#& -]*\\s+\\p{L}\\.)\\s*(?:\\((?<service>.*)\\))?\\s*$',
+		'^Appointment with\\s+(?<client>[\\p{L}][\\p{L}\'’.-]*(?:\\s+[\\p{L}][\\p{L}\'’.-]*)+)$'
 	],
-	descriptionPatterns: [],
+	descriptionPatterns: [
+		'^Client:\\s*(?<client>[^\\n]+)\\nService:\\s*(?<service>[^\\n]+)'
+	],
 	excludePatterns: ['^Break\\b'],
 	defaultDurationMin: 60
 };
+
+export function isLegacyDefaultParseRules(stored: Partial<ParseRules>): boolean {
+	return (
+		Array.isArray(stored.summaryPatterns) &&
+		stored.summaryPatterns.length === 1 &&
+		stored.summaryPatterns[0] === LEGACY_SUMMARY_PATTERN &&
+		Array.isArray(stored.descriptionPatterns) &&
+		stored.descriptionPatterns.length === 0 &&
+		Array.isArray(stored.excludePatterns) &&
+		stored.excludePatterns.length === 1 &&
+		stored.excludePatterns[0] === '^Break\\b' &&
+		(stored.defaultDurationMin === undefined || stored.defaultDurationMin === 60)
+	);
+}
+
+const MONTHS =
+	'Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?';
+const LEADING_DATE = new RegExp(
+	`^(?:(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun)[a-z]*\\.?,?\\s+)?(?:${MONTHS})\\.?\\s+\\d{1,2}(?:st|nd|rd|th)?(?:,\\s*\\d{4})?\\s+`,
+	'i'
+);
+
+/** Jane sometimes prefixes the summary with the appointment date. */
+function stripLeadingDate(summary: string): string {
+	return summary
+		.replace(LEADING_DATE, '')
+		.replace(/^\d{4}-\d{2}-\d{2}\s+/, '')
+		.trim();
+}
 
 const NAME_REJECTS = /^(cancelled|canceled|blocked|busy|free|lunch|break|hold)$/i;
 
@@ -42,7 +77,12 @@ export function cleanClientName(raw: string | null | undefined): string | null {
 	if (!/\b[A-Z]\.$/.test(name)) name = name.replace(/\.+$/g, '').trim();
 	if (!name || name.length < 2 || name.length > 80) return null;
 	if (NAME_REJECTS.test(name)) return null;
-	name = name.replace(/\s+[-–—]\s+\d+\s*(min|minutes|hr|hours?)\.?$/i, '').trim();
+	name = name
+		.replace(/\s+[A-Za-z]{2,}#\d+\b/g, '')
+		.replace(/\s+#\d+\b/g, '')
+		.replace(/\s+[-–—]\s+\d+\s*(min|minutes|hr|hours?)\.?$/i, '')
+		.replace(/\s+/g, ' ')
+		.trim();
 	return name || null;
 }
 
@@ -78,17 +118,23 @@ export function sessionTypeForService(service: string): SessionType {
  */
 export function classifyNonClient(summary: string): EventCategory {
 	const body = summary.replace(/^Break\s*-\s*/i, '').trim().toLowerCase();
-	if (!body || body === 'break' || body === 'lunch') return 'break';
-	if (/vacation/.test(body)) return 'vacation';
 	if (
-		/personal|appt|appointment|ortho|airport|drive|yoga|pick ?up|dr\b|doctor|dentist|physio/.test(
+		!body ||
+		/^(break|lunch|blocked|unavailable|do not book|hold)$/.test(body) ||
+		/^(break|lunch|blocked|unavailable|do not book|hold)\b/.test(body)
+	) {
+		return 'break';
+	}
+	if (/vacation|holiday|time off|pto|^leave\b/.test(body)) return 'vacation';
+	if (
+		/personal|appt|appointment|ortho|airport|drive|pick ?up|pickup|drop ?off|dropoff|yoga|gym|school|daycare|childcare|dr\b|doctor|dentist|physio/.test(
 			body
 		)
 	) {
 		return 'personal';
 	}
 	if (
-		/meeting|call|consult|case consult|prep|treatment|report|webinar|training|admin|supervision/.test(
+		/meeting|call|consult|case consult|prep|treatment|report|webinar|training|admin|supervision|staff|team|paperwork|notes/.test(
 			body
 		)
 	) {
@@ -127,7 +173,7 @@ export function extractClient(
 	}
 
 	const fields: [('summary' | 'description'), string[], string][] = [
-		['summary', rules.summaryPatterns, summary],
+		['summary', rules.summaryPatterns, stripLeadingDate(summary)],
 		['description', rules.descriptionPatterns, description]
 	];
 

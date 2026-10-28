@@ -13,7 +13,7 @@ export const load: PageServerLoad = async ({ params }) => {
 		next: addDays(date, 1),
 		today: todayISO(),
 		appointments: appointmentsForDay(date),
-		other: otherEventsForDay(date, ['work', 'personal', 'vacation', 'other'])
+		other: otherEventsForDay(date, ['break', 'work', 'personal', 'vacation', 'other'])
 	};
 };
 

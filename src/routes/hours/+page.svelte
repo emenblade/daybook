@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { fmtHours } from '#lib/dates.ts';
 	import { typeLabel } from '#lib/format.ts';
+	import { modalityLabel } from '#lib/session.ts';
 	import type { PageProps } from './$types';
 
 	let { data }: PageProps = $props();
@@ -71,6 +72,46 @@
 		</tbody>
 	</table>
 </section>
+
+<section class="card mt-4 overflow-hidden">
+	<h2 class="border-b border-slate-100 px-3 py-2 text-sm font-bold dark:border-slate-800">
+		By modality ({data.label})
+	</h2>
+	<table class="w-full text-sm">
+		<tbody>
+			{#each data.modalityRows as row (row.modality)}
+				<tr class="border-b border-slate-50 last:border-0 dark:border-slate-800/60">
+					<td class="px-3 py-2">{modalityLabel(row.modality)}</td>
+					<td class="px-3 py-2 text-right text-xs text-slate-500 dark:text-slate-400">
+						{row.count} appointment{row.count === 1 ? '' : 's'}
+					</td>
+					<td class="px-3 py-2 text-right font-semibold">{fmtHours(row.minutes)}h</td>
+				</tr>
+			{/each}
+		</tbody>
+	</table>
+</section>
+
+{#if data.providerRows.length > 0}
+	<section class="card mt-4 overflow-hidden">
+		<h2 class="border-b border-slate-100 px-3 py-2 text-sm font-bold dark:border-slate-800">
+			By provider ({data.label})
+		</h2>
+		<table class="w-full text-sm">
+			<tbody>
+				{#each data.providerRows as row (row.provider)}
+					<tr class="border-b border-slate-50 last:border-0 dark:border-slate-800/60">
+						<td class="px-3 py-2">{row.provider}</td>
+						<td class="px-3 py-2 text-right text-xs text-slate-500 dark:text-slate-400">
+							{row.count} appointment{row.count === 1 ? '' : 's'}
+						</td>
+						<td class="px-3 py-2 text-right font-semibold">{fmtHours(row.minutes)}h</td>
+					</tr>
+				{/each}
+			</tbody>
+		</table>
+	</section>
+{/if}
 
 <section class="card mt-4 overflow-hidden">
 	<h2 class="border-b border-slate-100 px-3 py-2 text-sm font-bold dark:border-slate-800">

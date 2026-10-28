@@ -81,7 +81,7 @@
 	</ul>
 	{#if data.otherToday.length > 0}
 		<div class="card mt-2 p-3">
-			<OtherEvents events={data.otherToday} title="Also today" />
+			<OtherEvents events={data.otherToday} title="Also on the calendar" />
 		</div>
 	{/if}
 </section>

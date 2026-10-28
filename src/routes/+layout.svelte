@@ -5,6 +5,7 @@
 	import favicon from '#lib/assets/favicon.svg';
 	import BottomNav from '#lib/components/BottomNav.svelte';
 	import Logo from '#lib/components/Logo.svelte';
+	import SyncButton from '#lib/components/SyncButton.svelte';
 	import type { LayoutProps } from './$types';
 
 	let { data, children }: LayoutProps = $props();
@@ -38,25 +39,7 @@
 						Daybook
 					</a>
 					<div class="flex items-center gap-1">
-						<a
-							href="/sync"
-							class="rounded-full p-2 text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"
-							aria-label="Calendar sync"
-							title="Calendar sync"
-						>
-							<svg
-								class="h-5 w-5"
-								viewBox="0 0 24 24"
-								fill="none"
-								stroke="currentColor"
-								stroke-width="1.8"
-								stroke-linecap="round"
-								stroke-linejoin="round"
-							>
-								<path d="M21 12a9 9 0 0 1-15.3 6.4M3 12a9 9 0 0 1 15.3-6.4" />
-								<path d="M21 3v5h-5M3 21v-5h5" />
-							</svg>
-						</a>
+						<SyncButton />
 						<a
 							href="/settings"
 							class="rounded-full p-2 text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"

@@ -1,6 +1,6 @@
 import type { CalendarConfig, ParseRules, ReminderSettings } from '#lib/types.ts';
 import { db } from './db.ts';
-import { DEFAULT_PARSE_RULES } from './parse.ts';
+import { DEFAULT_PARSE_RULES, isLegacyDefaultParseRules } from './parse.ts';
 
 export function getSetting(key: string): string | null {
 	const row = db.prepare('SELECT value FROM settings WHERE key = ?').get(key) as
@@ -31,7 +31,7 @@ function getJson(key: string): unknown {
 
 export function getParseRules(): ParseRules {
 	const stored = getJson('parse_rules') as Partial<ParseRules> | null;
-	if (!stored) return DEFAULT_PARSE_RULES;
+	if (!stored || isLegacyDefaultParseRules(stored)) return DEFAULT_PARSE_RULES;
 	return {
 		summaryPatterns: Array.isArray(stored.summaryPatterns)
 			? stored.summaryPatterns
@@ -62,6 +62,7 @@ export function getCalendarConfig(): CalendarConfig {
 		caldavUsername: stored?.caldavUsername ?? '',
 		caldavPassword: stored?.caldavPassword ?? '',
 		caldavCalendar: stored?.caldavCalendar ?? '',
+		providerName: stored?.providerName ?? 'Jane',
 		syncTime: stored?.syncTime ?? '03:30'
 	};
 }

@@ -15,6 +15,7 @@ import {
 } from './parse.ts';
 import * as repo from './repo.ts';
 import { getCalendarConfig, getParseRules, getSetting, setSetting } from './settings.ts';
+import { modalityFor } from '#lib/session.ts';
 
 const HISTORY_DAYS = 180;
 const FUTURE_DAYS = 120;
@@ -79,7 +80,7 @@ export async function syncCalendar(opts: {
 			if (!opts.icsText) throw new Error('No calendar data was uploaded.');
 			rawEvents = parseICS(opts.icsText, opts.fileName ?? 'Upload');
 		} else if (config.source === 'ics') {
-			rawEvents = parseICS(await fetchIcsFeed(config.icsUrl), 'ICS feed');
+			rawEvents = parseICS(await fetchIcsFeed(config.icsUrl), config.providerName || 'Jane');
 		} else {
 			rawEvents = await fetchCalDavEvents(config, fromTs, toTs);
 		}
@@ -147,7 +148,7 @@ export async function syncCalendar(opts: {
 							: `grp:${startIso}|${endIso}|${normalizeService(service)}`;
 				} else {
 					kind = 'other';
-					category = parsed.excluded ? 'break' : 'other';
+					category = parsed.excluded ? 'break' : classifyNonClient(summary);
 					notClient++;
 				}
 			}
@@ -197,6 +198,10 @@ export async function syncCalendar(opts: {
 				status = 'scheduled';
 			}
 
+			const location = raw.location?.trim() || null;
+			const provider = isUpload
+				? (opts.fileName ?? 'Upload')
+				: config.providerName?.trim() || raw.calendarName?.trim() || effectiveSource;
 			const result = repo.upsertAppointment({
 				groupKey,
 				startTs: startIso,
@@ -206,6 +211,9 @@ export async function syncCalendar(opts: {
 				service: service ?? '',
 				sessionType,
 				status,
+				location,
+				modality: modalityFor(service, location, raw.summary),
+				provider,
 				isDemo: false,
 				confirmedSource
 			});

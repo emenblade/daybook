@@ -9,7 +9,7 @@
   <Privileged>false</Privileged>
   <Support>https://github.com/emenblade/daybook</Support>
   <Project>https://github.com/emenblade/daybook</Project>
-  <Overview>Daybook syncs one practitioner's Jane/iCloud calendar every day, tracks every client session, and makes sure notes are confirmed. The desk view (/kiosk) shows today's plan with two large confirmations per session (no-show / done + notes), a cleanup list for sessions unconfirmed within 3 days, long-term follow-ups (30 days without a future booking), consent tracking, and treatment-plan reminders (due by session 3, reviewed every 90 days, remade yearly). Also tracks billable hours and exports CSV. LAN-only by design; reach the desk device over WireGuard or Tailscale. No email or cloud service is required. This template pulls the image published by GitHub Actions.</Overview>
+  <Overview>Daybook syncs one practitioner's Jane/iCloud calendar every day, tracks every client session, and makes sure notes are confirmed. The desk view (/kiosk) shows today's plan with two large confirmations per session (no-show / done + notes), a cleanup list for sessions unconfirmed within 3 days, long-term follow-ups (30 days without a future booking), consent tracking, treatment-plan reminders (due by session 3, reviewed every 90 days, remade yearly), session location/modality/provider tracking, and a full day view including breaks and meetings. Also tracks billable hours and exports CSV. LAN-only by design; reach the desk device over WireGuard or Tailscale. No email or cloud service is required. This template pulls the image published by GitHub Actions.</Overview>
   <Category>Tools: Productivity:</Category>
   <WebUI>http://[IP]:[PORT:8484]/</WebUI>
   <TemplateURL/>

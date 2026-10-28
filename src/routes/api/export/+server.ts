@@ -26,7 +26,10 @@ export const GET: RequestHandler = async ({ url, locals }) => {
 		'duration_min',
 		'hours',
 		'status',
-		'confirmed_at'
+		'confirmed_at',
+		'location',
+		'modality',
+		'provider'
 	];
 	const lines = rows.map((appointment) =>
 		[
@@ -38,7 +41,10 @@ export const GET: RequestHandler = async ({ url, locals }) => {
 			appointment.duration_min,
 			(appointment.duration_min / 60).toFixed(2),
 			appointment.status,
-			appointment.confirmed_at ?? ''
+			appointment.confirmed_at ?? '',
+			appointment.location ?? '',
+			appointment.modality,
+			appointment.provider ?? ''
 		]
 			.map(csvEscape)
 			.join(',')

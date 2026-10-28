@@ -107,6 +107,12 @@
 							Next: {fmtTsDate(client.next_session_at)}
 						</p>
 					{/if}
+					{#if client.providers}
+						<p class="mt-0.5 text-[11px] text-slate-400 dark:text-slate-500">
+							{client.providers.includes(',') ? 'Providers' : 'Provider'}:
+							{client.providers.replaceAll(',', ', ')}
+						</p>
+					{/if}
 				</div>
 				<svg
 					class="h-5 w-5 shrink-0 text-slate-300 dark:text-slate-600"
