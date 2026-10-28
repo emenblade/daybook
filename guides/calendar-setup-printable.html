@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<title>Daybook — Calendar Connection Guide</title>
+		<style>
+			@page { size: Letter; margin: 16mm; }
+			* { box-sizing: border-box; }
+			body {
+				font-family: -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+				font-size: 11.5pt; line-height: 1.38; color: #111; margin: 0;
+			}
+			h1 { font-size: 20pt; margin: 0 0 2mm; }
+			h2 { font-size: 14.5pt; margin: 5mm 0 1.5mm; border-bottom: 2px solid #111; padding-bottom: 1mm; }
+			h3 { font-size: 12.5pt; margin: 4mm 0 1mm; }
+			p { margin: 1.4mm 0; }
+			ol, ul { margin: 1.4mm 0; padding-left: 6mm; }
+			li { margin: 1.1mm 0; }
+			.box { border: 2px solid #111; border-radius: 2mm; padding: 3mm 4mm; margin: 3mm 0; }
+			.warn { border-left: 3mm solid #111; padding-left: 4mm; margin: 3mm 0; }
+			code { font-family: ui-monospace, Consolas, monospace; background: #eee; padding: 0 1mm; border-radius: 1mm; }
+			.small { font-size: 10pt; color: #333; }
+			.pagebreak { page-break-before: always; }
+			table { width: 100%; border-collapse: collapse; font-size: 10.5pt; }
+			th { text-align: left; border-bottom: 1.5px solid #111; padding: 1.5mm 0; }
+			td { padding: 1.4mm 4mm 1.4mm 0; border-bottom: 1px solid #ddd; vertical-align: top; }
+		</style>
+	</head>
+	<body>
+		<h1>Daybook — Calendar Connection Guide</h1>
+		<p class="small">Keep this with the tablet instructions. One-time setup.</p>
+
+		<div class="box">
+			<strong>You already have the Jane iCal link. Start here.</strong> No iPhone
+			access or Apple password is needed. The link is read-only and updates itself.
+		</div>
+
+		<h2>1. Use the Jane link (recommended)</h2>
+		<ol>
+			<li>Open Daybook → <strong>Sync</strong> (refresh icon at the top).</li>
+			<li>Calendar source: <strong>ICS feed URL</strong>.</li>
+			<li>Paste the Jane link she sent you. It looks like
+				<code>https://…janeapp.com/ical/…/appointments.ics</code>.</li>
+			<li>Leave the daily sync time at <code>03:30</code> unless you want another time.</li>
+			<li>Tap <strong>Save calendar source</strong>, then <strong>Sync now</strong>.</li>
+			<li>Scroll to <strong>Recent calendar events</strong> and check the results.</li>
+		</ol>
+
+		<h3>What you should see</h3>
+		<ul>
+			<li>Client titles like <code>First L. (In-Person FNIHB/IRS/Bigstone)</code>
+				with the client name in a green badge.</li>
+			<li><code>Break - …</code> rows labelled Break, Work, Personal, or Vacation.</li>
+			<li>Couples show both names; DBT shows all attendees and a <strong>Group</strong>
+				badge.</li>
+			<li>The first sync imports recent history as completed. Today/future
+				appointments show as <strong>To confirm</strong>.</li>
+		</ul>
+
+		<div class="warn">
+			<strong>The link is a password.</strong> Anyone who has it can read the
+			calendar, including client initials and schedule. Do not paste it into
+			messages, tickets, screenshots, or the shared bundle. Daybook stores it only
+			in the local SQLite database on the NAS. If it is exposed, regenerate the
+			feed in Jane and paste the new URL.
+		</div>
+
+		<h2>2. Reminders and follow-ups</h2>
+		<ul>
+			<li>After a session, confirm it on the desk screen or Overview: <strong>Done
+				+ notes in Jane</strong> or <strong>No-show</strong>.</li>
+			<li>Anything unconfirmed for 3 days appears under <strong>Needs attention</strong>;
+				after 5 PM a banner appears until it is cleared. Change both in Settings.</li>
+			<li>Clients not seen for 60 days (configurable) and with nothing booked appear
+				under <strong>Clients to review</strong>: mark Follow up or Discharged.</li>
+			<li>No email or external push service is used. The desk device is the reminder
+				surface.</li>
+		</ul>
+
+		<div class="pagebreak"></div>
+
+		<h2>Optional: private iCloud access instead</h2>
+		<p class="small">Only if you want to stop using the Jane link. This requires her
+			cooperation because Apple requires an app-specific password.</p>
+
+		<h3>On her iPhone (read this to her)</h3>
+		<ol>
+			<li>Open <strong>Settings</strong> → tap <strong>her name/photo</strong>.</li>
+			<li>Tap <strong>Sign-In &amp; Security</strong> (older iOS: Password &amp; Security).</li>
+			<li>Tap <strong>App-Specific Passwords</strong> → <strong>Generate Password</strong>.</li>
+			<li>Name it <strong>Daybook</strong> → <strong>Create</strong> → use Face ID/passcode.</li>
+			<li>Copy the four-group password and send it to you with the Apple ID email.</li>
+			<li>Calendar app → <strong>Calendars</strong> at the bottom → note the exact
+				name of the calendar Jane uses.</li>
+		</ol>
+		<p class="small">No “App-Specific Passwords”? Two-factor authentication is off or the
+			Apple ID is managed by an employer; use the Jane link instead.</p>
+
+		<h3>In Daybook</h3>
+		<ol>
+			<li><strong>Sync → iCloud CalDAV</strong>.</li>
+			<li>Server: <code>https://caldav.icloud.com</code>.</li>
+			<li>Apple ID + the app-specific password (not the main Apple password).</li>
+			<li>Calendar name: the exact name, or leave blank.</li>
+			<li><strong>Save → Sync now</strong> → check Recent calendar events.</li>
+		</ol>
+
+		<h2>Troubleshooting</h2>
+		<table>
+			<tr><th>Symptom</th><th>Fix</th></tr>
+			<tr><td>Jane link sync fails</td><td>Open the link in a browser to confirm it still
+				works. If Jane rotated it, paste the new link.</td></tr>
+			<tr><td>401/403 on CalDAV</td><td>Use an app-specific password, not the Apple ID
+				password.</td></tr>
+			<tr><td>“Calendar not found”</td><td>Use the exact name from the error list, or
+				leave the name blank.</td></tr>
+			<tr><td>Client names look wrong</td><td>Sync → Parsing rules → Test parse; the
+				defaults match <code>First L. (Service)</code>.</td></tr>
+			<tr><td>Times are shifted</td><td>Set the container <code>TZ</code> to
+				<code>America/Edmonton</code> and check the tablet timezone.</td></tr>
+		</table>
+
+		<h2>Do not</h2>
+		<ul>
+			<li>Send or enter her main Apple ID password.</li>
+			<li>Post or screenshot the Jane link.</li>
+			<li>Create a new Apple ID or a new calendar.</li>
+		</ul>
+	</body>
+</html>

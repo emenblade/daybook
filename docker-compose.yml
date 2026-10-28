@@ -1,0 +1,13 @@
+services:
+  daybook:
+    build: .
+    image: daybook:latest
+    container_name: daybook
+    restart: unless-stopped
+    ports:
+      - "${APP_PORT:-8484}:3000"
+    environment:
+      - TZ=${TZ:-UTC}
+      - DATABASE_PATH=/data/daybook.db
+    volumes:
+      - ${DATA_PATH:-./data}:/data

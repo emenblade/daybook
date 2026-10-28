@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<title>Daybook — Android Kiosk Checklist</title>
+		<style>
+			@page {
+				size: Letter;
+				margin: 16mm;
+			}
+			body {
+				font-family: -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+				font-size: 11.5pt;
+				line-height: 1.38;
+				color: #111;
+				margin: 0;
+			}
+			h1 {
+				font-size: 19pt;
+				margin: 0 0 2mm;
+			}
+			h2 {
+				font-size: 14pt;
+				margin: 5mm 0 2mm;
+				border-bottom: 2px solid #111;
+				padding-bottom: 1mm;
+			}
+			p {
+				margin: 1.4mm 0;
+			}
+			ul {
+				margin: 1.4mm 0;
+				padding-left: 0;
+				list-style: none;
+			}
+			li {
+				margin: 1.2mm 0;
+			}
+			.check {
+				display: inline-block;
+				width: 4mm;
+				height: 4mm;
+				border: 1.5px solid #111;
+				margin-right: 2.5mm;
+				vertical-align: -0.6mm;
+			}
+			.box {
+				border: 2px solid #111;
+				border-radius: 2mm;
+				padding: 3mm 4mm;
+				margin: 3mm 0;
+			}
+			code {
+				font-family: ui-monospace, Consolas, monospace;
+				background: #eee;
+				padding: 0 1mm;
+				border-radius: 1mm;
+			}
+			.small {
+				font-size: 10pt;
+				color: #333;
+			}
+			.cols {
+				display: grid;
+				grid-template-columns: 1fr 1fr;
+				gap: 0 7mm;
+			}
+			.pagebreak {
+				page-break-before: always;
+			}
+		</style>
+	</head>
+	<body>
+		<h1>Daybook — Android Kiosk Checklist</h1>
+		<p class="small">
+			Aim: a tablet that boots into Daybook, cannot leave the page, stays awake, reconnects
+			automatically, and shows the 5 PM reminder banner. See ANDROID-KIOSK-GUIDE.md for details.
+		</p>
+
+		<h2>1. Network</h2>
+		<ul>
+			<li><span class="check"></span>Tablet on Wi-Fi</li>
+			<li><span class="check"></span>WireGuard (or Tailscale) installed</li>
+			<li><span class="check"></span>Tunnel imported / signed in</li>
+			<li>
+				<span class="check"></span>Android → VPN → WireGuard → <strong>Always-on VPN</strong> +
+				<strong>Block connections without VPN</strong>
+			</li>
+			<li>
+				<span class="check"></span>Test URL loads: <code>http://&lt;NAS_WG_IP&gt;:8484/login</code>
+			</li>
+		</ul>
+
+		<h2>2. Fully Kiosk Browser</h2>
+		<ul>
+			<li><span class="check"></span>Fully Kiosk Browser installed and opened once</li>
+			<li>
+				<span class="check"></span>Start URL:
+				<code>http://&lt;NAS_WG_IP&gt;:8484/kiosk?eink=1</code> (e-ink) or
+				<code>/kiosk</code> (LCD)
+			</li>
+			<li><span class="check"></span>JavaScript and cookies enabled</li>
+			<li><span class="check"></span>Landscape orientation</li>
+			<li><span class="check"></span>Logged in once with the PIN</li>
+			<li><span class="check"></span>Kiosk Mode / Lock enabled, settings PIN set</li>
+			<li><span class="check"></span>Start on Boot / Autostart enabled</li>
+			<li><span class="check"></span>Keep Screen On enabled</li>
+			<li><span class="check"></span>Restart App on Crash enabled</li>
+			<li><span class="check"></span>Reload on Reconnect / network error enabled</li>
+			<li><span class="check"></span>Status bar / navigation bar hidden if available</li>
+			<li>
+				<span class="check"></span>Website whitelist (PRO): only
+				<code>http://&lt;NAS_WG_IP&gt;:8484/*</code>
+			</li>
+		</ul>
+
+		<h2>3. Android settings</h2>
+		<div class="cols">
+			<ul>
+				<li><span class="check"></span>Fully set as <strong>Home app</strong></li>
+				<li><span class="check"></span>Battery → <strong>Unrestricted</strong> for Fully</li>
+				<li><span class="check"></span>Screen lock → None (Fully has its own PIN)</li>
+				<li><span class="check"></span>Stay awake while charging</li>
+			</ul>
+			<ul>
+				<li><span class="check"></span>Screen timeout long / Never</li>
+				<li><span class="check"></span>Play Store auto-update off for Fully</li>
+				<li><span class="check"></span>Date &amp; time automatic</li>
+				<li><span class="check"></span>Charger connected</li>
+			</ul>
+		</div>
+
+		<h2 class="pagebreak">4. Test before handing it over</h2>
+		<ul>
+			<li><span class="check"></span>Reboot → returns to Daybook by itself</li>
+			<li><span class="check"></span>Wi-Fi drop → reconnects and reloads</li>
+			<li><span class="check"></span>Home button → Daybook only</li>
+			<li><span class="check"></span>No way to reach Settings/other apps without PIN</li>
+			<li><span class="check"></span>Toggle No-show → Done + notes → undo</li>
+			<li><span class="check"></span>Overnight → still on the kiosk</li>
+			<li><span class="check"></span>After 5 PM with an outstanding session → banner appears</li>
+			<li><span class="check"></span>Clear the session → banner disappears</li>
+		</ul>
+
+		<div class="box">
+			<strong>No email is involved.</strong> The tablet is the reminder surface. After the
+			configured time (default 5 PM) a banner appears while sessions are unconfirmed. Adjust the
+			3-day threshold and time in Daybook → Settings.
+		</div>
+
+		<h2>If something breaks</h2>
+		<ul>
+			<li><strong>Browser error:</strong> VPN down → reconnect WireGuard; Fully reloads.</li>
+			<li><strong>PIN screen:</strong> log in again; cookie lasts 90 days. Don't clear cookies on exit.</li>
+			<li><strong>Stale day:</strong> tap Refresh in e-ink mode / wait 5 minutes; check tablet clock.</li>
+			<li><strong>App closes:</strong> battery optimisation still on; set Unrestricted.</li>
+			<li><strong>Lost settings PIN:</strong> clear Fully's app data and reconfigure.</li>
+		</ul>
+	</body>
+</html>
