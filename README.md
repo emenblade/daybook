@@ -185,9 +185,17 @@ To build from source instead: `cd source && docker compose up -d --build`.
 | `DAYBOOK_SETUP_USERNAME` | `admin` | First-run bootstrap username |
 | `DAYBOOK_SETUP_PASSWORD` | `daybook-setup` | First-run bootstrap password; change before exposing |
 | `DAYBOOK_USER_NAME` | `Sara` | Display name in the UI |
+| `DAYBOOK_DB_KEY` | blank | 64 hex chars; encrypts the live SQLite database |
 | `ORIGIN` | blank | Public HTTPS URL when behind Nginx, e.g. `https://daybook.example.com` |
 | `ADDRESS_HEADER` | blank | Set to `x-forwarded-for` behind Nginx for real client IPs |
 | `XFF_DEPTH` | `1` | Number of trusted proxies in front of Daybook |
+
+**Live database:** set `DAYBOOK_DB_KEY` to a 64-character hex key
+(`openssl rand -hex 32`). Daybook encrypts the SQLite file with SQLCipher and
+rekeys an existing plaintext database on first start. Keep the key separate from
+the database and backups; if it is lost, the live database cannot be opened. A
+restored backup is a plaintext SQLite file; if `DAYBOOK_DB_KEY` is set, Daybook
+re-encrypts it on the next start (or set a new key).
 
 Backups: **Settings → Encrypted backup**, with a passphrase you choose. The
 passphrase is not stored; without it the backup cannot be restored. Restore with
@@ -245,7 +253,7 @@ E-ink tip: keep the device in light mode; the grayscale filter is designed for i
 
 ## Stack
 
-SvelteKit (Svelte 5) + adapter-node, SQLite (better-sqlite3), Tailwind CSS v4,
+SvelteKit (Svelte 5) + adapter-node, SQLite (better-sqlite3-multiple-ciphers/SQLCipher), Tailwind CSS v4,
 `ical.js` for parsing, `tsdav` for CalDAV, PWA manifest and kiosk-friendly
 layout. Daily sync and reminder scheduling run
 in-process (no cron sidecar).

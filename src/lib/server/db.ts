@@ -1,5 +1,6 @@
-import Database from 'better-sqlite3';
-import { mkdirSync } from 'node:fs';
+import type Database from 'better-sqlite3';
+import { createRequire } from 'node:module';
+import { closeSync, existsSync, mkdirSync, openSync, readSync, rmSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { DATABASE_PATH } from '$app/env/private';
 import { addDays, parseISO, todayISO } from '#lib/dates.ts';
@@ -12,6 +13,11 @@ import {
 	normalizeName,
 	normalizeService
 } from './parse.ts';
+
+const require = createRequire(import.meta.url);
+const Sqlite = require('better-sqlite3-multiple-ciphers') as typeof Database;
+type Db = Database.Database;
+type CipherDb = Db & { key(key: Buffer): number; rekey(key: Buffer): number };
 
 const SCHEMA_VERSION = 7;
 
@@ -124,14 +130,62 @@ const SCHEMA = `
 	);
 `;
 
-function open(): Database.Database {
+function databaseKey(): Buffer | null {
+	const value = process.env.DAYBOOK_DB_KEY?.trim() ?? '';
+	if (!value) return null;
+	if (!/^[0-9a-fA-F]{64}$/.test(value)) {
+		throw new Error('DAYBOOK_DB_KEY must be exactly 64 hex characters (32 bytes).');
+	}
+	return Buffer.from(value, 'hex');
+}
+
+function isPlaintextDatabase(path: string): boolean {
+	if (!existsSync(path)) return false;
+	const fd = openSync(path, 'r');
+	const header = Buffer.alloc(16);
+	try {
+		readSync(fd, header, 0, header.length, 0);
+	} finally {
+		closeSync(fd);
+	}
+	return header.toString('utf8') === 'SQLite format 3\u0000';
+}
+
+function open(): Db {
 	const path = DATABASE_PATH || 'data/daybook.db';
 	if (path !== ':memory:') {
 		mkdirSync(dirname(resolve(path)), { recursive: true });
 	}
-	const database = new Database(path);
-	database.pragma('journal_mode = WAL');
-	database.pragma('foreign_keys = ON');
+	const key = databaseKey();
+	if (!key && path !== ':memory:' && existsSync(path) && !isPlaintextDatabase(path)) {
+		throw new Error(
+			'This Daybook database is encrypted. Set DAYBOOK_DB_KEY to the key used to create it.'
+		);
+	}
+
+	if (key && path !== ':memory:' && isPlaintextDatabase(path)) {
+		const legacy = new Sqlite(path) as CipherDb;
+		legacy.pragma('journal_mode = DELETE');
+		legacy.rekey(key);
+		legacy.close();
+		rmSync(`${path}-wal`, { force: true });
+		rmSync(`${path}-shm`, { force: true });
+	}
+
+	const database = new Sqlite(path) as CipherDb;
+	if (key) database.key(key);
+	try {
+		database.pragma('journal_mode = WAL');
+		database.pragma('foreign_keys = ON');
+	} catch (error) {
+		database.close();
+		if (key) {
+			throw new Error(
+				'Could not open the encrypted Daybook database. Check that DAYBOOK_DB_KEY matches the key used to create it.'
+			);
+		}
+		throw error;
+	}
 	migrate(database);
 	seed(database);
 	ensureDefaults(database);
@@ -139,7 +193,7 @@ function open(): Database.Database {
 }
 
 function addColumns(
-	database: Database.Database,
+	database: Db,
 	table: string,
 	columns: Record<string, string>
 ): void {
@@ -152,7 +206,7 @@ function addColumns(
 	}
 }
 
-function migrateReminderDefaults(database: Database.Database): void {
+function migrateReminderDefaults(database: Db): void {
 	const row = database
 		.prepare("SELECT value FROM settings WHERE key = 'reminder_settings'")
 		.get() as { value: string } | undefined;
@@ -170,7 +224,7 @@ function migrateReminderDefaults(database: Database.Database): void {
 	}
 }
 
-function backfillAppointmentMetadata(database: Database.Database): void {
+function backfillAppointmentMetadata(database: Db): void {
 	const rows = database
 		.prepare(
 			`SELECT a.id, a.title, a.service,
@@ -200,7 +254,7 @@ function backfillAppointmentMetadata(database: Database.Database): void {
 	}
 }
 
-function migrateAuth(database: Database.Database): void {
+function migrateAuth(database: Db): void {
 	addColumns(database, 'users', {
 		username: 'TEXT',
 		password_hash: 'TEXT',
@@ -236,7 +290,7 @@ function migrateAuth(database: Database.Database): void {
 	}
 }
 
-function migrate(database: Database.Database): void {
+function migrate(database: Db): void {
 	let version = database.pragma('user_version', { simple: true }) as number;
 	if (version === SCHEMA_VERSION) return;
 
@@ -296,7 +350,7 @@ function migrate(database: Database.Database): void {
 	database.pragma(`user_version = ${SCHEMA_VERSION}`);
 }
 
-function ensureDefaults(database: Database.Database): void {
+function ensureDefaults(database: Db): void {
 	const defaults: [string, string][] = [
 		['parse_rules', JSON.stringify(DEFAULT_PARSE_RULES)],
 		[
@@ -345,7 +399,7 @@ interface DemoSpec {
 	service: string;
 }
 
-function seed(database: Database.Database): void {
+function seed(database: Db): void {
 	const count = database.prepare('SELECT count(*) AS c FROM users').get() as { c: number };
 	if (count.c > 0) return;
 
@@ -682,6 +736,6 @@ function seed(database: Database.Database): void {
 	}
 }
 
-const globalRef = globalThis as unknown as { __daybook_db?: Database.Database };
+const globalRef = globalThis as unknown as { __daybook_db?: Db };
 
-export const db: Database.Database = (globalRef.__daybook_db ??= open());
+export const db: Db = (globalRef.__daybook_db ??= open());

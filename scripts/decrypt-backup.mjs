@@ -49,7 +49,7 @@ try {
 	}
 	writeFileSync(output, plaintext, { mode: 0o600 });
 	console.log(`Wrote ${output}.`);
-	console.log('Stop the container, back up the current /data/daybook.db, replace it with this file, then start the container.');
+	console.log('Stop the container, back up the current /data/daybook.db, replace it with this file, then start the container. If DAYBOOK_DB_KEY is set, Daybook encrypts the restored plaintext database on startup.');
 } catch {
 	console.error('Wrong passphrase or corrupted backup.');
 	process.exit(1);

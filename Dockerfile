@@ -3,7 +3,7 @@ FROM node:22-bookworm-slim AS build
 
 WORKDIR /app
 
-# better-sqlite3 ships prebuilds, but keep the toolchain so a from-source
+# better-sqlite3-multiple-ciphers ships prebuilds, but keep the toolchain so a from-source
 # build still works on other architectures.
 RUN apt-get update \
 	&& apt-get install -y --no-install-recommends python3 make g++ \

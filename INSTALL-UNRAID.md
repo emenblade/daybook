@@ -55,16 +55,20 @@ The container runs as root inside the container (same as StreamAssets), so the d
 
 ## 2. First run
 
-1. Open `http://<nas-ip>:8484`.
-2. Sign in with the first-run bootstrap credentials (`admin` / `daybook-setup`
+1. Before starting, set `DAYBOOK_DB_KEY` in the template to a fresh 64-character
+   hex key (`openssl rand -hex 32`), and store the key somewhere separate. This
+   encrypts the live SQLite database; losing it makes the database unreadable.
+   Leave it blank only for an unencrypted test database.
+2. Open `http://<nas-ip>:8484`.
+3. Sign in with the first-run bootstrap credentials (`admin` / `daybook-setup`
    unless you set `DAYBOOK_SETUP_*` in the template). Daybook will force you to
    choose a permanent username and password before you can continue.
-3. **Settings:** confirm the name, set the timezone, and adjust the 3-day
+4. **Settings:** confirm the name, set the timezone, and adjust the 3-day
    reminder and 30-day follow-up thresholds if desired.
-4. **Settings → Remove demo data**.
-5. **Sync → Calendar source → ICS feed URL** → paste the Jane link → **Save** →
+5. **Settings → Remove demo data**.
+6. **Sync → Calendar source → ICS feed URL** → paste the Jane link → **Save** →
    **Sync now**.
-6. Check **Event diagnostics** and then the **Overview**/`/kiosk`.
+7. Check **Event diagnostics** and then the **Overview**/`/kiosk`.
 
 No iPhone access is needed when using the Jane link. The link is a secret; treat
 it like a password and do not put it in screenshots or the repo. The calendar
