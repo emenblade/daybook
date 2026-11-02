@@ -185,6 +185,9 @@ To build from source instead: `cd source && docker compose up -d --build`.
 | `DAYBOOK_SETUP_USERNAME` | `admin` | First-run bootstrap username |
 | `DAYBOOK_SETUP_PASSWORD` | `daybook-setup` | First-run bootstrap password; change before exposing |
 | `DAYBOOK_USER_NAME` | `Sara` | Display name in the UI |
+| `ORIGIN` | blank | Public HTTPS URL when behind Nginx, e.g. `https://daybook.example.com` |
+| `ADDRESS_HEADER` | blank | Set to `x-forwarded-for` behind Nginx for real client IPs |
+| `XFF_DEPTH` | `1` | Number of trusted proxies in front of Daybook |
 
 Backups: **Settings → Encrypted backup**, with a passphrase you choose. The
 passphrase is not stored; without it the backup cannot be restored. Restore with

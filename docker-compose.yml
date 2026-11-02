@@ -12,5 +12,8 @@ services:
       - DAYBOOK_SETUP_USERNAME=${DAYBOOK_SETUP_USERNAME:-admin}
       - DAYBOOK_SETUP_PASSWORD=${DAYBOOK_SETUP_PASSWORD:-daybook-setup}
       - DAYBOOK_USER_NAME=${DAYBOOK_USER_NAME:-Sara}
+      - ORIGIN=${ORIGIN:-}
+      - ADDRESS_HEADER=${ADDRESS_HEADER:-}
+      - XFF_DEPTH=${XFF_DEPTH:-1}
     volumes:
       - ${DATA_PATH:-./data}:/data
