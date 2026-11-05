@@ -19,7 +19,7 @@ const Sqlite = require('better-sqlite3-multiple-ciphers') as typeof Database;
 type Db = Database.Database;
 type CipherDb = Db & { key(key: Buffer): number; rekey(key: Buffer): number };
 
-const SCHEMA_VERSION = 7;
+const SCHEMA_VERSION = 8;
 
 const SCHEMA = `
 	CREATE TABLE users (
@@ -66,6 +66,7 @@ const SCHEMA = `
 		status TEXT NOT NULL DEFAULT 'scheduled' CHECK (status IN ('scheduled','completed','no_show','canceled')),
 		confirmed_at TEXT,
 		confirmed_source TEXT,
+		canceled_by_client INTEGER NOT NULL DEFAULT 0,
 		location TEXT,
 		modality TEXT NOT NULL DEFAULT 'unknown' CHECK (modality IN ('in_person','remote','unknown')),
 		provider TEXT,
@@ -111,6 +112,18 @@ const SCHEMA = `
 	CREATE INDEX idx_events_start ON calendar_events(start_ts);
 	CREATE INDEX idx_events_source ON calendar_events(source);
 	CREATE INDEX idx_events_group ON calendar_events(group_key);
+
+	CREATE TABLE audit_log (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		at TEXT NOT NULL DEFAULT (datetime('now')),
+		user_id INTEGER,
+		action TEXT NOT NULL,
+		entity TEXT,
+		entity_id TEXT,
+		detail TEXT
+	);
+
+	CREATE INDEX idx_audit_at ON audit_log(at);
 
 	CREATE TABLE sync_runs (
 		id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -326,6 +339,26 @@ function migrate(database: Db): void {
 
 	if (version === 6) {
 		migrateAuth(database);
+		database.pragma('user_version = 7');
+		version = 7;
+	}
+
+	if (version === 7) {
+		addColumns(database, 'appointments', {
+			canceled_by_client: 'INTEGER NOT NULL DEFAULT 0'
+		});
+		database.exec(`
+			CREATE TABLE IF NOT EXISTS audit_log (
+				id INTEGER PRIMARY KEY AUTOINCREMENT,
+				at TEXT NOT NULL DEFAULT (datetime('now')),
+				user_id INTEGER,
+				action TEXT NOT NULL,
+				entity TEXT,
+				entity_id TEXT,
+				detail TEXT
+			);
+			CREATE INDEX IF NOT EXISTS idx_audit_at ON audit_log(at);
+		`);
 		database.pragma(`user_version = ${SCHEMA_VERSION}`);
 		return;
 	}
@@ -344,6 +377,7 @@ function migrate(database: Db): void {
 		DROP TABLE IF EXISTS entries;
 		DROP TABLE IF EXISTS users;
 		DROP TABLE IF EXISTS login_attempts;
+		DROP TABLE IF EXISTS audit_log;
 		DROP TABLE IF EXISTS settings;
 	`);
 	database.exec(SCHEMA);
@@ -367,6 +401,7 @@ function ensureDefaults(database: Db): void {
 			})
 		],
 		['reminder_settings', JSON.stringify({ delayDays: 3, time: '17:00', staleDays: 30 })],
+		['additional_calendars', '[]'],
 		['last_sync_at', ''],
 		['last_sync_status', ''],
 		['last_sync_error', ''],

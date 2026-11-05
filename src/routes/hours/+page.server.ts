@@ -94,6 +94,7 @@ export const load: PageServerLoad = async ({ url }) => {
 				totalMinutes: 0,
 				completedCount: 0,
 				noShowCount: 0,
+				clientCanceledCount: 0,
 				clientCount: 0
 			}
 		})),

@@ -168,7 +168,11 @@
 	<section class="card space-y-3 p-4">
 		<h2 class="font-bold">Calendar</h2>
 		<p class="text-xs text-slate-500 dark:text-slate-400">
-			{data.calendarProvider} · {calendarSourceLabel} · daily sync at {data.calendarSyncTime}{#if data.lastSyncAt}
+			{data.calendarProvider} · {calendarSourceLabel} · daily sync at {data.calendarSyncTime}
+			{#if data.additionalCalendars > 0}
+				· {data.additionalCalendars} additional calendar{data.additionalCalendars === 1 ? '' : 's'}
+			{/if}
+			{#if data.lastSyncAt}
 				· last sync {fmtTsDateTime(data.lastSyncAt)}{/if}
 		</p>
 		{#if data.lastSyncStatus === 'error'}

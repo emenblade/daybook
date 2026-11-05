@@ -29,7 +29,10 @@
 		appointment.status === 'scheduled' && appointment.start_ts > new Date().toISOString()
 	);
 	const completed = $derived(appointment.status === 'completed');
-	const noShow = $derived(appointment.status === 'no_show');
+	const clientCanceled = $derived(
+		appointment.status === 'no_show' && appointment.canceled_by_client === 1
+	);
+	const noShow = $derived(appointment.status === 'no_show' && !clientCanceled);
 	const planActions = $derived(
 		appointment.status === 'canceled'
 			? []
@@ -86,7 +89,11 @@
 			{/if}
 		</div>
 		<div class="flex shrink-0 flex-col items-end gap-1">
-			<SessionStatusPill status={appointment.status} {future} />
+			<SessionStatusPill
+				status={appointment.status}
+				{future}
+				{clientCanceled}
+			/>
 			<SessionTypePill type={appointment.session_type} count={appointment.participants.length} />
 		</div>
 	</div>
@@ -108,6 +115,11 @@
 				<input type="hidden" name="id" value={appointment.id} />
 				<input type="hidden" name="status" value={noShow ? 'scheduled' : 'no_show'} />
 				<button class="chip {noShow ? 'chip-rose' : 'chip-slate'}">No-show</button>
+			</form>
+			<form method="POST" action="?/setSessionStatus" use:enhance>
+				<input type="hidden" name="id" value={appointment.id} />
+				<input type="hidden" name="status" value={clientCanceled ? 'scheduled' : 'client_canceled'} />
+				<button class="chip {clientCanceled ? 'chip-amber' : 'chip-slate'}">Client canceled</button>
 			</form>
 		</div>
 	{/if}

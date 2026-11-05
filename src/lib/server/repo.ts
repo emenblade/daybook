@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import {
 	dayRangeISO,
 	daysSinceTs,
@@ -36,7 +37,7 @@ type AppointmentRow = Omit<Appointment, 'participants'>;
 
 const APPT_COLS = `a.id, a.group_key, a.start_ts, a.end_ts, a.duration_min, a.title,
 	a.service, a.session_type, a.status, a.confirmed_at, a.confirmed_source,
-	a.location, a.modality, a.provider, a.is_demo`;
+	a.canceled_by_client, a.location, a.modality, a.provider, a.is_demo`;
 
 function attachParticipants(rows: AppointmentRow[]): Appointment[] {
 	if (rows.length === 0) return [];
@@ -192,6 +193,39 @@ export function countClientsWithoutConsent(): number {
 		)
 		.get() as { c: number };
 	return row.c;
+}
+
+export function setClientHistoricalDates(
+	id: number,
+	dates: {
+		consentSignedAt: string | null;
+		planCompletedAt: string | null;
+		planReviewedAt: string | null;
+	}
+): void {
+	db.prepare(
+		`UPDATE clients SET consent_signed_at = ?, consent_signed_source = ?,
+			treatment_plan_completed_at = ?, treatment_plan_reviewed_at = ?,
+			updated_at = datetime('now') WHERE id = ?`
+	).run(
+		dates.consentSignedAt,
+		dates.consentSignedAt ? 'manual' : null,
+		dates.planCompletedAt,
+		dates.planReviewedAt,
+		id
+	);
+}
+
+export function logAudit(
+	userId: number | null,
+	action: string,
+	entity: string | null,
+	entityId: string | number | null,
+	detail: string | null
+): void {
+	db.prepare(
+		'INSERT INTO audit_log (user_id, action, entity, entity_id, detail) VALUES (?, ?, ?, ?, ?)'
+	).run(userId, action, entity, entityId === null ? null : String(entityId), detail);
 }
 
 export function findOrCreateClient(name: string, normalized: string, isDemo = false): number {
@@ -425,11 +459,23 @@ export function appointmentsForClient(clientId: number, limit = 250): Appointmen
 	return attachParticipants(rows);
 }
 
-export function setAppointmentStatus(id: number, status: SessionStatus, source: string): void {
+export function setAppointmentStatus(
+	id: number,
+	status: SessionStatus,
+	source: string,
+	clientCanceled = false
+): void {
 	const confirmed = status === 'completed' || status === 'no_show';
 	db.prepare(
-		`UPDATE appointments SET status = ?, confirmed_at = ?, confirmed_source = ?, updated_at = datetime('now') WHERE id = ?`
-	).run(status, confirmed ? new Date().toISOString() : null, confirmed ? source : null, id);
+		`UPDATE appointments SET status = ?, confirmed_at = ?, confirmed_source = ?,
+			canceled_by_client = ?, updated_at = datetime('now') WHERE id = ?`
+	).run(
+		status,
+		confirmed ? new Date().toISOString() : null,
+		confirmed ? source : null,
+		status === 'no_show' && clientCanceled ? 1 : 0,
+		id
+	);
 }
 
 export function appointmentsNeedingAttention(delayDays: number, limit = 40): Appointment[] {
@@ -513,7 +559,8 @@ export function hoursSummary(fromISO: string, toISO: string): HoursSummary {
 			`SELECT
 				COALESCE(SUM(CASE WHEN status = 'completed' THEN duration_min END), 0) AS minutes,
 				COUNT(CASE WHEN status = 'completed' THEN 1 END) AS completed,
-				COUNT(CASE WHEN status = 'no_show' THEN 1 END) AS no_shows,
+				COUNT(CASE WHEN status = 'no_show' AND canceled_by_client = 0 THEN 1 END) AS no_shows,
+				COUNT(CASE WHEN status = 'no_show' AND canceled_by_client = 1 THEN 1 END) AS client_canceled,
 				COUNT(DISTINCT CASE WHEN status = 'completed' THEN id END) AS appointments
 			 FROM appointments WHERE start_ts >= ? AND start_ts < ?`
 		)
@@ -521,12 +568,14 @@ export function hoursSummary(fromISO: string, toISO: string): HoursSummary {
 		minutes: number;
 		completed: number;
 		no_shows: number;
+		client_canceled: number;
 		appointments: number;
 	};
 	return {
 		totalMinutes: row.minutes,
 		completedCount: row.completed,
 		noShowCount: row.no_shows,
+		clientCanceledCount: row.client_canceled,
 		clientCount: 0
 	};
 }
@@ -585,7 +634,8 @@ export function hoursForWeeks(weekStarts: string[]): Map<string, HoursSummary> {
 		`SELECT
 			COALESCE(SUM(CASE WHEN status = 'completed' THEN duration_min END), 0) AS minutes,
 			COUNT(CASE WHEN status = 'completed' THEN 1 END) AS completed,
-			COUNT(CASE WHEN status = 'no_show' THEN 1 END) AS no_shows
+			COUNT(CASE WHEN status = 'no_show' AND canceled_by_client = 0 THEN 1 END) AS no_shows,
+			COUNT(CASE WHEN status = 'no_show' AND canceled_by_client = 1 THEN 1 END) AS client_canceled
 		 FROM appointments WHERE start_ts >= ? AND start_ts < ?`
 	);
 	for (const start of weekStarts) {
@@ -596,11 +646,13 @@ export function hoursForWeeks(weekStarts: string[]): Map<string, HoursSummary> {
 			minutes: number;
 			completed: number;
 			no_shows: number;
+			client_canceled: number;
 		};
 		map.set(start, {
 			totalMinutes: row.minutes,
 			completedCount: row.completed,
 			noShowCount: row.no_shows,
+			clientCanceledCount: row.client_canceled,
 			clientCount: 0
 		});
 	}
@@ -799,6 +851,72 @@ export function upsertAppointment(input: AppointmentInput): { id: number; create
 			input.isDemo ? 1 : 0
 		);
 	return { id: Number(result.lastInsertRowid), created: true };
+}
+
+export interface HistoricalAppointmentInput {
+	clientId: number;
+	startTs: string;
+	endTs: string;
+	durationMin: number;
+	service: string;
+	status: 'completed' | 'no_show';
+	clientCanceled: boolean;
+	location: string | null;
+	modality: Appointment['modality'];
+	provider: string | null;
+}
+
+export function manualAppointmentExists(clientId: number, startTs: string): boolean {
+	const row = db
+		.prepare(
+			`SELECT 1 FROM appointments a JOIN appointment_clients ac ON ac.appointment_id = a.id
+			 WHERE ac.client_id = ? AND a.start_ts = ? AND a.group_key LIKE 'manual:%' LIMIT 1`
+		)
+		.get(clientId, startTs);
+	return Boolean(row);
+}
+
+export function addHistoricalAppointment(input: HistoricalAppointmentInput): number {
+	const now = new Date().toISOString();
+	return db.transaction(() => {
+		const result = db
+			.prepare(
+				`INSERT INTO appointments
+					(group_key, start_ts, end_ts, duration_min, title, service, session_type, status,
+					 confirmed_at, confirmed_source, canceled_by_client, location, modality, provider, is_demo)
+				 VALUES (?, ?, ?, ?, ?, ?, 'individual', ?, ?, 'manual', ?, ?, ?, ?, 0)`
+			)
+			.run(
+				`manual:${randomUUID()}`,
+				input.startTs,
+				input.endTs,
+				input.durationMin,
+				input.service || 'Manual session',
+				input.service,
+				input.status,
+				now,
+				input.clientCanceled ? 1 : 0,
+				input.location,
+				input.modality,
+				input.provider
+			);
+		const id = Number(result.lastInsertRowid);
+		db.prepare(
+			'INSERT OR IGNORE INTO appointment_clients (appointment_id, client_id) VALUES (?, ?)'
+		).run(id, input.clientId);
+		return id;
+	})();
+}
+
+export function removeCalendarSourceData(sourceKey: string, groupPrefix: string): void {
+	db.transaction(() => {
+		db.prepare('UPDATE calendar_events SET removed = 1 WHERE source = ?').run(sourceKey);
+		db.prepare(
+			`UPDATE appointments SET status = 'canceled', canceled_by_client = 0,
+				updated_at = datetime('now')
+			 WHERE status = 'scheduled' AND group_key LIKE ?`
+		).run(`${groupPrefix}%`);
+	})();
 }
 
 export function setAppointmentParticipants(

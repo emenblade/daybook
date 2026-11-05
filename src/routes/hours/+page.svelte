@@ -49,7 +49,11 @@
 <p class="mt-2 text-xs text-slate-500 dark:text-slate-400">
 	{data.summary.completedCount} completed appointment{data.summary.completedCount === 1
 		? ''
-		: 's'} this month. Group and couples sessions count once.
+		: 's'} this month · {data.summary.noShowCount} no-show{data.summary.noShowCount === 1
+		? ''
+		: 's'} · {data.summary.clientCanceledCount} client cancellation{data.summary.clientCanceledCount === 1
+		? ''
+		: 's'}. Group and couples sessions count once.
 </p>
 
 <section class="card mt-4 overflow-hidden">

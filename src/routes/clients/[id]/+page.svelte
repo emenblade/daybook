@@ -3,11 +3,11 @@
 	import AppointmentRow from '#lib/components/AppointmentRow.svelte';
 	import ConsentCheck from '#lib/components/ConsentCheck.svelte';
 	import TreatmentPlanCheck from '#lib/components/TreatmentPlanCheck.svelte';
-	import { fmtDateSmart, fmtHours, fmtTsDate } from '#lib/dates.ts';
+	import { fmtDateSmart, fmtHours, fmtTsDate, tsToDate } from '#lib/dates.ts';
 	import { missingPlanAction } from '#lib/treatment.ts';
 	import type { PageProps } from './$types';
 
-	let { data }: PageProps = $props();
+	let { data, form }: PageProps = $props();
 </script>
 
 <header class="mb-4">
@@ -105,7 +105,9 @@
 				? 'desk'
 				: data.client.consent_signed_source === 'demo'
 					? 'demo data'
-					: 'admin'}.
+					: data.client.consent_signed_source === 'manual'
+						? 'manual entry'
+						: 'admin'}.
 		{:else}
 			not signed yet. It stays on session cards until marked.
 		{/if}
@@ -131,6 +133,135 @@
 		{/if}
 	</p>
 </div>
+
+<details class="card mb-4 p-3">
+	<summary class="cursor-pointer font-bold">Historical data</summary>
+	<p class="mt-1 text-xs text-slate-500 dark:text-slate-400">
+		Backfill dates from her records. No notes, contacts, or free-text clinical data.
+	</p>
+
+	<form method="POST" action="?/setClientDates" use:enhance class="mt-3 space-y-2 border-t border-slate-100 pt-3 dark:border-slate-800">
+		<input type="hidden" name="id" value={data.client.id} />
+		<p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Historical dates</p>
+		<div class="grid gap-2 sm:grid-cols-3">
+			<div>
+				<label class="label" for="consent_date">Consent signed</label>
+				<input
+					id="consent_date"
+					class="input"
+					type="date"
+					name="consent_date"
+					value={data.client.consent_signed_at ? tsToDate(data.client.consent_signed_at) : ''}
+				/>
+			</div>
+			<div>
+				<label class="label" for="plan_completed_date">Plan completed/remade</label>
+				<input
+					id="plan_completed_date"
+					class="input"
+					type="date"
+					name="plan_completed_date"
+					value={data.planInfo.completedOn ?? ''}
+				/>
+			</div>
+			<div>
+				<label class="label" for="plan_reviewed_date">Plan last reviewed</label>
+				<input
+					id="plan_reviewed_date"
+					class="input"
+					type="date"
+					name="plan_reviewed_date"
+					value={data.planInfo.reviewedOn ?? ''}
+				/>
+			</div>
+		</div>
+		<p class="text-[11px] text-slate-400 dark:text-slate-500">
+			Leave a field blank to clear it. Dates cannot be in the future.
+		</p>
+		{#if form?.datesError}
+			<p class="text-sm font-medium text-rose-600 dark:text-rose-400">{form.datesError}</p>
+		{/if}
+		{#if form?.datesSaved}
+			<p class="text-sm font-medium text-emerald-600 dark:text-emerald-400">
+				Historical dates saved.
+			</p>
+		{/if}
+		<button class="btn-secondary w-full">Save historical dates</button>
+	</form>
+
+	<form method="POST" action="?/addHistoricalSession" use:enhance class="mt-4 space-y-2 border-t border-slate-100 pt-3 dark:border-slate-800">
+		<input type="hidden" name="client_id" value={data.client.id} />
+		<p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Add a past session</p>
+		<div class="grid grid-cols-2 gap-2">
+			<div>
+				<label class="label" for="history_date">Date</label>
+				<input id="history_date" class="input" type="date" name="date" required />
+			</div>
+			<div>
+				<label class="label" for="history_time">Time</label>
+				<input id="history_time" class="input" type="time" name="time" required />
+			</div>
+			<div>
+				<label class="label" for="history_duration">Minutes</label>
+				<input
+					id="history_duration"
+					class="input"
+					type="number"
+					name="duration_min"
+					min="5"
+					max="480"
+					value="60"
+					required
+				/>
+			</div>
+			<div>
+				<label class="label" for="history_status">Status</label>
+				<select id="history_status" class="input" name="status">
+					<option value="completed">Completed</option>
+					<option value="no_show">No-show</option>
+					<option value="client_canceled">Client canceled</option>
+				</select>
+			</div>
+		</div>
+		<div>
+			<label class="label" for="history_service">Service</label>
+			<input
+				id="history_service"
+				class="input"
+				name="service"
+				placeholder="In-Person FNIHB/IRS/Bigstone"
+			/>
+		</div>
+		<div class="grid grid-cols-2 gap-2">
+			<div>
+				<label class="label" for="history_modality">Location type</label>
+				<select id="history_modality" class="input" name="modality">
+					<option value="auto">Auto from service/location</option>
+					<option value="in_person">In person</option>
+					<option value="remote">Remote</option>
+					<option value="unknown">Unknown</option>
+				</select>
+			</div>
+			<div>
+				<label class="label" for="history_provider">Provider</label>
+				<input id="history_provider" class="input" name="provider" placeholder={data.providers[0] ?? 'Manual'} />
+			</div>
+		</div>
+		<div>
+			<label class="label" for="history_location">Location</label>
+			<input id="history_location" class="input" name="location" placeholder="Clinic or Zoom" />
+		</div>
+		{#if form?.sessionError}
+			<p class="text-sm font-medium text-rose-600 dark:text-rose-400">{form.sessionError}</p>
+		{/if}
+		{#if form?.sessionAdded}
+			<p class="text-sm font-medium text-emerald-600 dark:text-emerald-400">
+				Past session added.
+			</p>
+		{/if}
+		<button class="btn-secondary w-full">Add past session</button>
+	</form>
+</details>
 
 <div class="grid grid-cols-2 gap-2">
 	<div class="card p-3">

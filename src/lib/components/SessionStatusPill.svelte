@@ -1,10 +1,19 @@
 <script lang="ts">
 	import type { SessionStatus } from '#lib/types.ts';
 
-	let { status, future = false }: { status: SessionStatus; future?: boolean } = $props();
+	let {
+		status,
+		future = false,
+		clientCanceled = false
+	}: { status: SessionStatus; future?: boolean; clientCanceled?: boolean } = $props();
 
 	const config = $derived(
-		status === 'scheduled' && future
+		status === 'no_show' && clientCanceled
+			? {
+					label: 'Client canceled',
+					cls: 'bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-300'
+				}
+			: status === 'scheduled' && future
 			? {
 					label: 'Upcoming',
 					cls: 'bg-sky-100 text-sky-800 dark:bg-sky-900/50 dark:text-sky-300'

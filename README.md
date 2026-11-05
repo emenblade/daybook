@@ -29,6 +29,9 @@ iCloud calendar and needs to stay ahead of session notes and client follow-ups.
   Plans are reviewed every 90 days and remade every year; when a booked session
   falls within a week of the due date (or later), the long-term list shows the
   upcoming review and the session card gets the matching checkbox.
+- **Historical data.** On a client page, **Historical data** lets her backdate
+  consent and treatment-plan dates and add a past session. Manual changes are
+  recorded in a minimal audit log; there are no free-text notes.
 - **Where and how.** Every appointment keeps its calendar location, provider
   label, and a derived **In person / Remote** modality. Hours and CSV exports can
   be broken down by session type, modality, and provider.
@@ -105,6 +108,15 @@ The password is stored in the local SQLite database (on your NAS), never sent
 anywhere else. Encrypted backups still contain it inside the encrypted file;
 protect the backup passphrase and the live database volume.
 
+### Additional calendars
+
+On **Sync → Additional calendars**, add another provider label and ICS/webcal
+link. Additional calendars use the same parsing rules, reminders, and client
+records as the main calendar. If the same client appears in both calendars, the
+client record is shared and each appointment keeps its provider. Removing an
+additional calendar keeps its past sessions and hours but cancels its future
+scheduled sessions.
+
 ### 3. iCloud public calendar link (only if needed)
 
 If the Jane link is unavailable, an iCloud public link can be used the same way
@@ -150,6 +162,8 @@ start as **To confirm** and the 3-day reminder clock applies.
   no future booking, status still active. Marking **Follow up** or **Discharged**
   clears the alert and is visible in the client history. A future booking always
   suppresses the follow-up reminder.
+- **Client cancellations:** the desk view has a **Client canceled** action
+  separate from **No-show**. Both stop reminders; hours report them separately.
 - **Treatment plans:** missing after the third completed session, or due for a
   90-day review / annual remake. The long-term list shows upcoming reviews when a
   booked session falls within a week of the due date or later; the session card

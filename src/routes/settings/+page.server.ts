@@ -14,6 +14,7 @@ import {
 	updateUserName
 } from '#lib/server/repo.ts';
 import {
+	getAdditionalCalendars,
 	getCalendarConfig,
 	getReminderSettings,
 	getSetting,
@@ -28,6 +29,7 @@ export const load: PageServerLoad = async () => {
 		reminder: getReminderSettings(),
 		calendarSource: calendar.source,
 		calendarProvider: calendar.providerName,
+		additionalCalendars: getAdditionalCalendars().length,
 		calendarSyncTime: calendar.syncTime,
 		lastSyncAt: getSetting('last_sync_at'),
 		lastSyncStatus: getSetting('last_sync_status'),

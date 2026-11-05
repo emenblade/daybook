@@ -1,5 +1,5 @@
 import { addDays, parseISO, todayISO } from '#lib/dates.ts';
-import type { EventKind, SessionStatus, SessionType } from '#lib/types.ts';
+import type { CalendarConfig, EventKind, SessionStatus, SessionType } from '#lib/types.ts';
 import {
 	fetchCalDavEvents,
 	fetchIcsFeed,
@@ -14,7 +14,14 @@ import {
 	sessionTypeForService
 } from './parse.ts';
 import * as repo from './repo.ts';
-import { getCalendarConfig, getParseRules, getSetting, setSetting } from './settings.ts';
+import {
+	getAdditionalCalendars,
+	getCalendarConfig,
+	getParseRules,
+	getSetting,
+	setSetting,
+	updateAdditionalCalendarSync
+} from './settings.ts';
 import { modalityFor } from '#lib/session.ts';
 
 const HISTORY_DAYS = 180;
@@ -33,6 +40,23 @@ export interface SyncResult {
 	message: string;
 }
 
+interface SyncJob {
+	key: string;
+	label: string;
+	kind: 'ics' | 'caldav' | 'upload';
+	icsUrl?: string;
+	caldav?: CalendarConfig;
+	uidPrefix: string;
+	groupPrefix: string;
+	extraId?: string;
+	isUpload: boolean;
+	fileName?: string;
+}
+
+interface JobResult extends SyncResult {
+	removed: number;
+}
+
 let syncing = false;
 
 export function isSyncing(): boolean {
@@ -44,45 +68,64 @@ function blankService(summary: string): string | null {
 	return match ? match[1].trim() : null;
 }
 
-export async function syncCalendar(opts: {
-	source: 'auto' | 'manual' | 'upload';
-	icsText?: string;
-	fileName?: string;
-}): Promise<SyncResult> {
-	if (syncing) throw new Error('A calendar sync is already running.');
-
-	const config = getCalendarConfig();
-	const isUpload = opts.source === 'upload';
-	const effectiveSource = isUpload ? 'upload' : config.source;
-
-	if (!isUpload) {
-		if (config.source === 'none') throw new Error('No calendar source is configured yet.');
-		if (config.source === 'ics' && !config.icsUrl.trim()) {
-			throw new Error('No ICS feed URL is configured.');
-		}
-		if (config.source === 'caldav' && (!config.caldavUsername || !config.caldavPassword)) {
-			throw new Error('CalDAV credentials are missing.');
-		}
+function primaryJob(config: CalendarConfig): SyncJob | null {
+	if (config.source === 'none') return null;
+	if (config.source === 'ics' && !config.icsUrl.trim()) {
+		throw new Error('No ICS feed URL is configured for the main calendar.');
 	}
+	if (config.source === 'caldav' && (!config.caldavUsername || !config.caldavPassword)) {
+		throw new Error('CalDAV credentials are missing for the main calendar.');
+	}
+	return {
+		key: config.source,
+		label: config.providerName || 'Main calendar',
+		kind: config.source,
+		icsUrl: config.icsUrl,
+		caldav: config,
+		uidPrefix: '',
+		groupPrefix: '',
+		isUpload: false
+	};
+}
 
-	syncing = true;
-	const runId = repo.startSyncRun(effectiveSource);
+function additionalJobs(): SyncJob[] {
+	return getAdditionalCalendars().map((calendar) => {
+		const key = `extra:${calendar.id}`;
+		return {
+			key,
+			label: calendar.name,
+			kind: 'ics',
+			icsUrl: calendar.icsUrl,
+			uidPrefix: `${key}:`,
+			groupPrefix: `${key}:`,
+			extraId: calendar.id,
+			isUpload: false
+		};
+	});
+}
+
+async function syncJob(
+	job: SyncJob,
+	opts: { icsText?: string; fileName?: string }
+): Promise<JobResult> {
+	const today = todayISO();
+	const fromDate = addDays(today, -HISTORY_DAYS);
+	const toDate = addDays(today, FUTURE_DAYS);
+	const fromTs = parseISO(fromDate).toISOString();
+	const toTs = parseISO(addDays(toDate, 1)).toISOString();
+	const runId = repo.startSyncRun(job.key);
 
 	try {
-		const today = todayISO();
-		const fromDate = addDays(today, -HISTORY_DAYS);
-		const toDate = addDays(today, FUTURE_DAYS);
-		const fromTs = parseISO(fromDate).toISOString();
-		const toTs = parseISO(addDays(toDate, 1)).toISOString();
-
 		let rawEvents: RawCalendarEvent[];
-		if (isUpload) {
+		if (job.kind === 'upload') {
 			if (!opts.icsText) throw new Error('No calendar data was uploaded.');
 			rawEvents = parseICS(opts.icsText, opts.fileName ?? 'Upload');
-		} else if (config.source === 'ics') {
-			rawEvents = parseICS(await fetchIcsFeed(config.icsUrl), config.providerName || 'Jane');
+		} else if (job.kind === 'ics') {
+			if (!job.icsUrl) throw new Error('No ICS feed URL is configured.');
+			rawEvents = parseICS(await fetchIcsFeed(job.icsUrl), job.label);
 		} else {
-			rawEvents = await fetchCalDavEvents(config, fromTs, toTs);
+			if (!job.caldav) throw new Error('CalDAV configuration is missing.');
+			rawEvents = await fetchCalDavEvents(job.caldav, fromTs, toTs);
 		}
 
 		const rules = getParseRules();
@@ -107,7 +150,8 @@ export async function syncCalendar(opts: {
 			const endIso = raw.end.toISOString();
 			if (startIso < fromTs || startIso >= toTs || raw.allDay || raw.end <= raw.start) continue;
 
-			seen.add(raw.uid);
+			const storedUid = `${job.uidPrefix}${raw.uid}`;
+			seen.add(storedUid);
 			eventsSeen++;
 			const summary = raw.summary.trim();
 			const duration = Math.max(
@@ -132,7 +176,7 @@ export async function syncCalendar(opts: {
 				category = 'duplicate';
 				duplicates++;
 				if (service) {
-					groupKey = `grp:${startIso}|${endIso}|${normalizeService(service)}`;
+					groupKey = `${job.groupPrefix}grp:${startIso}|${endIso}|${normalizeService(service)}`;
 				}
 			} else {
 				const parsed = extractClient(summary, raw.description, rules);
@@ -144,8 +188,8 @@ export async function syncCalendar(opts: {
 					sessionType = sessionTypeForService(service);
 					groupKey =
 						sessionType === 'individual'
-							? `evt:${raw.uid}`
-							: `grp:${startIso}|${endIso}|${normalizeService(service)}`;
+							? `${job.groupPrefix}evt:${raw.uid}`
+							: `${job.groupPrefix}grp:${startIso}|${endIso}|${normalizeService(service)}`;
 				} else {
 					kind = 'other';
 					category = parsed.excluded ? 'break' : classifyNonClient(summary);
@@ -154,9 +198,9 @@ export async function syncCalendar(opts: {
 			}
 
 			repo.upsertCalendarEvent({
-				uid: raw.uid,
-				source: effectiveSource,
-				calendarName: raw.calendarName,
+				uid: storedUid,
+				source: job.key,
+				calendarName: job.isUpload ? raw.calendarName : job.label,
 				summary: raw.summary,
 				description: raw.description,
 				location: raw.location,
@@ -190,8 +234,6 @@ export async function syncCalendar(opts: {
 				raw.start.getTime() < trackingStartMs &&
 				raw.start.getTime() < nowMs
 			) {
-				// First import: history is recorded as completed so it feeds client
-				// history and hours without creating a backlog of fake reminders.
 				status = 'completed';
 				confirmedSource = 'import';
 			} else {
@@ -199,9 +241,7 @@ export async function syncCalendar(opts: {
 			}
 
 			const location = raw.location?.trim() || null;
-			const provider = isUpload
-				? (opts.fileName ?? 'Upload')
-				: config.providerName?.trim() || raw.calendarName?.trim() || effectiveSource;
+			const provider = job.isUpload ? (job.fileName ?? 'Upload') : job.label;
 			const result = repo.upsertAppointment({
 				groupKey,
 				startTs: startIso,
@@ -224,16 +264,14 @@ export async function syncCalendar(opts: {
 		for (const [groupKey, participants] of groupParticipants) {
 			const appointment = repo.getAppointmentByGroupKey(groupKey);
 			if (!appointment) continue;
-			const reconcile = !isUpload && appointment.status === 'scheduled';
+			const reconcile = !job.isUpload && appointment.status === 'scheduled';
 			repo.setAppointmentParticipants(appointment.id, [...participants], reconcile);
 		}
 
 		let removed = 0;
-		let canceled = 0;
-		if (!isUpload) {
+		if (!job.isUpload) {
 			const removalFrom = parseISO(addDays(today, -14)).toISOString();
-			removed = repo.markMissingEvents(effectiveSource, removalFrom, toTs, seen);
-			canceled = repo.cancelOrphanedAppointments(removalFrom, toTs);
+			removed = repo.markMissingEvents(job.key, removalFrom, toTs, seen);
 		}
 
 		const bits = [`Read ${eventsSeen} events`];
@@ -242,36 +280,137 @@ export async function syncCalendar(opts: {
 		if (notClient) bits.push(`${notClient} non-client`);
 		if (duplicates) bits.push(`${duplicates} placeholder${duplicates === 1 ? '' : 's'}`);
 		if (removed) bits.push(`${removed} removed`);
-		if (canceled) bits.push(`${canceled} canceled`);
 		const message = bits.join(' · ');
 
 		repo.finishSyncRun(runId, true, message, eventsSeen, created, updated);
-		setSetting('last_sync_at', new Date().toISOString());
-		setSetting('last_sync_status', 'ok');
-		setSetting('last_sync_error', '');
-		setSetting('last_sync_source', effectiveSource);
-		if (!isUpload) setSetting('last_daily_sync_date', today);
-
 		return {
 			ok: true,
-			source: effectiveSource,
+			source: job.key,
 			eventsSeen,
 			appointmentsCreated: created,
 			appointmentsUpdated: updated,
 			notClient,
 			duplicates,
 			eventsRemoved: removed,
-			appointmentsCanceled: canceled,
-			message
+			appointmentsCanceled: 0,
+			message,
+			removed
 		};
 	} catch (error) {
 		const message = error instanceof Error ? error.message : String(error);
 		repo.finishSyncRun(runId, false, message, 0, 0, 0);
-		setSetting('last_sync_status', 'error');
-		setSetting('last_sync_error', message);
-		setSetting('last_sync_source', effectiveSource);
 		throw error;
+	}
+}
+
+export async function syncCalendar(opts: {
+	source: 'auto' | 'manual' | 'upload';
+	icsText?: string;
+	fileName?: string;
+}): Promise<SyncResult> {
+	if (syncing) throw new Error('A calendar sync is already running.');
+	syncing = true;
+
+	try {
+		if (opts.source === 'upload') {
+			const job: SyncJob = {
+				key: 'upload',
+				label: opts.fileName ?? 'Upload',
+				kind: 'upload',
+				uidPrefix: '',
+				groupPrefix: '',
+				isUpload: true,
+				fileName: opts.fileName
+			};
+			const result = await syncJob(job, opts);
+			finishGlobalSync([result], [], false);
+			return result;
+		}
+
+		const config = getCalendarConfig();
+		const jobs: SyncJob[] = [];
+		const primary = primaryJob(config);
+		if (primary) jobs.push(primary);
+		jobs.push(...additionalJobs());
+		if (jobs.length === 0) throw new Error('No calendar source is configured yet.');
+
+		const results: JobResult[] = [];
+		const errors: string[] = [];
+		for (const job of jobs) {
+			try {
+				const result = await syncJob(job, opts);
+				results.push(result);
+				if (job.extraId) updateAdditionalCalendarSync(job.extraId, 'ok', null);
+			} catch (error) {
+				const message = error instanceof Error ? error.message : String(error);
+				errors.push(`${job.label}: ${message}`);
+				if (job.extraId) updateAdditionalCalendarSync(job.extraId, 'error', message);
+			}
+		}
+
+		const today = todayISO();
+		const removalFrom = parseISO(addDays(today, -14)).toISOString();
+		const toTs = parseISO(addDays(addDays(today, FUTURE_DAYS), 1)).toISOString();
+		const canceled = results.length ? repo.cancelOrphanedAppointments(removalFrom, toTs) : 0;
+		const totals = results.reduce(
+			(acc, result) => ({
+				eventsSeen: acc.eventsSeen + result.eventsSeen,
+				appointmentsCreated: acc.appointmentsCreated + result.appointmentsCreated,
+				appointmentsUpdated: acc.appointmentsUpdated + result.appointmentsUpdated,
+				notClient: acc.notClient + result.notClient,
+				duplicates: acc.duplicates + result.duplicates,
+				eventsRemoved: acc.eventsRemoved + result.eventsRemoved
+			}),
+			{
+				eventsSeen: 0,
+				appointmentsCreated: 0,
+				appointmentsUpdated: 0,
+				notClient: 0,
+				duplicates: 0,
+				eventsRemoved: 0
+			}
+		);
+		const bits = [
+			`Read ${totals.eventsSeen} events from ${results.length} calendar${results.length === 1 ? '' : 's'}`
+		];
+		if (totals.appointmentsCreated)
+			bits.push(`${totals.appointmentsCreated} new appointment${totals.appointmentsCreated === 1 ? '' : 's'}`);
+		if (totals.appointmentsUpdated) bits.push(`${totals.appointmentsUpdated} updated`);
+		if (totals.notClient) bits.push(`${totals.notClient} non-client`);
+		if (totals.duplicates)
+			bits.push(`${totals.duplicates} placeholder${totals.duplicates === 1 ? '' : 's'}`);
+		if (totals.eventsRemoved) bits.push(`${totals.eventsRemoved} removed`);
+		if (canceled) bits.push(`${canceled} canceled`);
+		if (errors.length) bits.push(`${errors.length} source${errors.length === 1 ? '' : 's'} failed`);
+		const message = bits.join(' · ');
+
+		finishGlobalSync(results, errors, true);
+		if (errors.length && results.length === 0) throw new Error(errors.join(' · '));
+		return {
+			ok: errors.length === 0,
+			source: jobs.length > 1 ? 'multi' : jobs[0].key,
+			eventsSeen: totals.eventsSeen,
+			appointmentsCreated: totals.appointmentsCreated,
+			appointmentsUpdated: totals.appointmentsUpdated,
+			notClient: totals.notClient,
+			duplicates: totals.duplicates,
+			eventsRemoved: totals.eventsRemoved,
+			appointmentsCanceled: canceled,
+			message
+		};
 	} finally {
 		syncing = false;
 	}
+}
+
+function finishGlobalSync(results: JobResult[], errors: string[], daily: boolean): void {
+	const now = new Date().toISOString();
+	setSetting('last_sync_at', now);
+	setSetting('last_sync_status', errors.length ? 'error' : 'ok');
+	setSetting('last_sync_error', errors.join(' · '));
+	setSetting(
+		'last_sync_source',
+		results.length > 1 ? 'multi' : results[0]?.source ?? 'none'
+	);
+	if (daily) setSetting('last_daily_sync_date', todayISO());
 }

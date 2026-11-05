@@ -49,6 +49,7 @@ export interface Client {
 
 export interface Appointment {
 	id: number;
+	canceled_by_client: number;
 	group_key: string;
 	start_ts: string;
 	end_ts: string;
@@ -178,7 +179,18 @@ export interface HoursSummary {
 	totalMinutes: number;
 	completedCount: number;
 	noShowCount: number;
+	clientCanceledCount: number;
 	clientCount: number;
+}
+
+export interface AdditionalCalendar {
+	id: string;
+	name: string;
+	icsUrl: string;
+	createdAt: string;
+	lastSyncAt: string | null;
+	lastSyncStatus: 'ok' | 'error' | null;
+	lastSyncError: string | null;
 }
 
 export interface TypeHours {

@@ -46,7 +46,7 @@
 <section class="card space-y-3 p-4">
 	<div class="flex items-center justify-between">
 		<h2 class="font-bold">Source</h2>
-		{#if data.config.source !== 'none'}
+		{#if data.config.source !== 'none' || data.additionalCalendars.length > 0}
 			<form method="POST" action="?/syncNow" use:enhance>
 				<button class="chip chip-sky">Sync now</button>
 			</form>
@@ -175,6 +175,124 @@
 </section>
 
 <section class="card mt-4 space-y-3 p-4">
+	<div class="flex items-center justify-between gap-2">
+		<h2 class="font-bold">Additional calendars</h2>
+		{#if data.additionalCalendars.length > 0}
+			<span class="pill bg-sky-100 text-sky-800 dark:bg-sky-900/50 dark:text-sky-300"
+				>{data.additionalCalendars.length}</span
+			>
+		{/if}
+	</div>
+	<p class="text-xs text-slate-500 dark:text-slate-400">
+		Add another ICS link for a different provider. These use the same parsing rules, reminders, and
+		client records as the main calendar.
+	</p>
+
+	{#if data.additionalCalendars.length > 0}
+		<ul class="space-y-2">
+			{#each data.additionalCalendars as calendar (calendar.id)}
+				<li class="rounded-xl border border-slate-200 p-2.5 dark:border-slate-700">
+					<div class="flex flex-wrap items-center justify-between gap-2">
+						<p class="truncate font-semibold">{calendar.name}</p>
+						{#if calendar.lastSyncStatus === 'error'}
+							<span class="pill bg-rose-100 text-rose-700 dark:bg-rose-900/50 dark:text-rose-300"
+								>Error</span
+							>
+						{:else if calendar.lastSyncAt}
+							<span
+								class="pill bg-emerald-100 text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-300"
+								>Synced</span
+							>
+						{:else}
+							<span class="pill bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400"
+								>Not synced</span
+							>
+						{/if}
+					</div>
+					<p class="mt-0.5 truncate text-xs text-slate-400 dark:text-slate-500">
+						{calendar.icsUrl}
+					</p>
+					<p class="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">
+						{#if calendar.lastSyncAt}
+							Last sync {fmtTsDateTime(calendar.lastSyncAt)}
+						{:else}
+							Not synced yet.
+						{/if}
+						{#if calendar.lastSyncError}
+							· {calendar.lastSyncError}
+						{/if}
+					</p>
+					<form
+						method="POST"
+						action="?/removeCalendar"
+						use:enhance={({ cancel }) => {
+							if (
+								!window.confirm(
+									`Remove ${calendar.name}? Its synced history stays, but future scheduled sessions from it will be canceled.`
+								)
+							)
+								cancel();
+						}}
+						class="mt-2"
+					>
+						<input type="hidden" name="id" value={calendar.id} />
+						<button class="chip chip-rose">Remove calendar</button>
+					</form>
+				</li>
+			{/each}
+		</ul>
+	{/if}
+
+	<form
+		method="POST"
+		action="?/addCalendar"
+		use:enhance
+		class="space-y-2 border-t border-slate-100 pt-3 dark:border-slate-800"
+	>
+		<div class="grid gap-2 sm:grid-cols-2">
+			<div>
+				<label class="label" for="calendarName">Provider label</label>
+				<input
+					id="calendarName"
+					class="input"
+					name="name"
+					placeholder="Provider name"
+					required
+				/>
+			</div>
+			<div>
+				<label class="label" for="calendarUrl">ICS / webcal URL</label>
+				<input
+					id="calendarUrl"
+					class="input"
+					name="icsUrl"
+					placeholder="https://… or webcal://…"
+					required
+				/>
+			</div>
+		</div>
+		<p class="text-[11px] text-slate-400 dark:text-slate-500">
+			Removing a calendar stops future syncs from that source and cancels its future scheduled
+			sessions, but keeps past sessions and hours.
+		</p>
+		{#if form?.calendarError}
+			<p class="text-sm font-medium text-rose-600 dark:text-rose-400">{form.calendarError}</p>
+		{/if}
+		{#if form?.calendarAdded}
+			<p class="text-sm font-medium text-emerald-600 dark:text-emerald-400">
+				Calendar added. Run Sync now to import it.
+			</p>
+		{/if}
+		{#if form?.calendarRemoved}
+			<p class="text-sm font-medium text-emerald-600 dark:text-emerald-400">
+				Calendar removed.
+			</p>
+		{/if}
+		<button class="btn-secondary w-full">Add calendar</button>
+	</form>
+</section>
+
+<section class="card mt-4 space-y-3 p-4">
 	<h2 class="font-bold">Upload an .ics file</h2>
 	<p class="text-xs text-slate-500 dark:text-slate-400">
 		Handy for testing the parser before the automatic sync is set up.
@@ -272,7 +390,7 @@
 		{#each data.runs as run (run.id)}
 			<li class="px-3 py-2">
 				<p class="flex items-center justify-between gap-2">
-					<span class="font-medium">{run.source}</span>
+					<span class="font-medium">{run.sourceLabel}</span>
 					<span
 						class="pill {run.ok
 							? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-300'

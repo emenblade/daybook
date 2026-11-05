@@ -1,4 +1,10 @@
-import type { CalendarConfig, ParseRules, ReminderSettings } from '#lib/types.ts';
+import { randomUUID } from 'node:crypto';
+import type {
+	AdditionalCalendar,
+	CalendarConfig,
+	ParseRules,
+	ReminderSettings
+} from '#lib/types.ts';
 import { db } from './db.ts';
 import { DEFAULT_PARSE_RULES, isLegacyDefaultParseRules } from './parse.ts';
 
@@ -69,6 +75,67 @@ export function getCalendarConfig(): CalendarConfig {
 
 export function saveCalendarConfig(config: CalendarConfig): void {
 	setSetting('calendar_config', JSON.stringify(config));
+}
+
+export function getAdditionalCalendars(): AdditionalCalendar[] {
+	const stored = getJson('additional_calendars');
+	if (!Array.isArray(stored)) return [];
+	return stored
+		.filter((item): item is Record<string, unknown> => Boolean(item) && typeof item === 'object')
+		.map((item) => ({
+			id: String(item.id ?? ''),
+			name: String(item.name ?? 'Calendar'),
+			icsUrl: String(item.icsUrl ?? ''),
+			createdAt: String(item.createdAt ?? ''),
+			lastSyncAt: item.lastSyncAt ? String(item.lastSyncAt) : null,
+			lastSyncStatus: (item.lastSyncStatus === 'ok' || item.lastSyncStatus === 'error'
+				? item.lastSyncStatus
+				: null) as AdditionalCalendar['lastSyncStatus'],
+			lastSyncError: item.lastSyncError ? String(item.lastSyncError) : null
+		}))
+		.filter((item) => item.id && item.icsUrl);
+}
+
+export function saveAdditionalCalendars(calendars: AdditionalCalendar[]): void {
+	setSetting('additional_calendars', JSON.stringify(calendars));
+}
+
+export function addAdditionalCalendar(name: string, icsUrl: string): AdditionalCalendar {
+	const calendars = getAdditionalCalendars();
+	const calendar: AdditionalCalendar = {
+		id: randomUUID(),
+		name: name.trim(),
+		icsUrl: icsUrl.trim(),
+		createdAt: new Date().toISOString(),
+		lastSyncAt: null,
+		lastSyncStatus: null,
+		lastSyncError: null
+	};
+	calendars.push(calendar);
+	saveAdditionalCalendars(calendars);
+	return calendar;
+}
+
+export function removeAdditionalCalendar(id: string): AdditionalCalendar | null {
+	const calendars = getAdditionalCalendars();
+	const found = calendars.find((calendar) => calendar.id === id) ?? null;
+	if (!found) return null;
+	saveAdditionalCalendars(calendars.filter((calendar) => calendar.id !== id));
+	return found;
+}
+
+export function updateAdditionalCalendarSync(
+	id: string,
+	status: 'ok' | 'error',
+	error: string | null
+): void {
+	const calendars = getAdditionalCalendars();
+	const calendar = calendars.find((item) => item.id === id);
+	if (!calendar) return;
+	calendar.lastSyncAt = new Date().toISOString();
+	calendar.lastSyncStatus = status;
+	calendar.lastSyncError = error;
+	saveAdditionalCalendars(calendars);
 }
 
 export function getReminderSettings(): ReminderSettings {

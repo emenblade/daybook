@@ -73,7 +73,9 @@
 
 	function statusLine(appointment: KioskAppointment): string {
 		if (appointment.status === 'completed') return 'Notes in Jane';
-		if (appointment.status === 'no_show') return 'No-show';
+		if (appointment.status === 'no_show') {
+			return appointment.canceled_by_client === 1 ? 'Client canceled' : 'No-show';
+		}
 		if (appointment.past) return 'Past — needs confirmation';
 		return 'Upcoming';
 	}
@@ -97,22 +99,23 @@
 		<input
 			type="hidden"
 			name="status"
-			value={appointment.status === 'no_show' ? 'scheduled' : 'no_show'}
+			value={appointment.status === 'no_show' && appointment.canceled_by_client !== 1
+				? 'scheduled'
+				: 'no_show'}
 		/>
 		<button
 			class="flex items-center justify-center gap-2 rounded-xl border-2 font-bold transition active:scale-95 {compact
 				? 'min-h-10 px-3 text-sm'
-				: 'min-h-12 px-3 text-sm'} {appointment.status === 'no_show'
+				: 'min-h-12 px-3 text-sm'} {appointment.status === 'no_show' && appointment.canceled_by_client !== 1
 				? 'border-rose-500 bg-rose-500 text-white'
 				: 'border-slate-300 bg-white text-slate-600 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300'}"
 		>
 			<span
-				class="flex items-center justify-center rounded border-2 {compact ? 'h-4 w-4' : 'h-5 w-5'} {appointment.status ===
-				'no_show'
+				class="flex items-center justify-center rounded border-2 {compact ? 'h-4 w-4' : 'h-5 w-5'} {appointment.status === 'no_show' && appointment.canceled_by_client !== 1
 					? 'border-white bg-white/20'
 					: 'border-current'}"
 			>
-				{#if appointment.status === 'no_show'}
+				{#if appointment.status === 'no_show' && appointment.canceled_by_client !== 1}
 					<svg
 						class="h-3.5 w-3.5"
 						viewBox="0 0 24 24"
@@ -125,6 +128,41 @@
 				{/if}
 			</span>
 			No-show
+		</button>
+	</form>
+	<form method="POST" action="?/setSessionStatus" use:enhance>
+		<input type="hidden" name="id" value={appointment.id} />
+		<input
+			type="hidden"
+			name="status"
+			value={appointment.canceled_by_client === 1 ? 'scheduled' : 'client_canceled'}
+		/>
+		<button
+			class="flex items-center justify-center gap-2 rounded-xl border-2 font-bold transition active:scale-95 {compact
+				? 'min-h-10 px-3 text-sm'
+				: 'min-h-12 px-3 text-sm'} {appointment.canceled_by_client === 1
+				? 'border-amber-500 bg-amber-500 text-white'
+				: 'border-slate-300 bg-white text-slate-600 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300'}"
+		>
+			<span
+				class="flex items-center justify-center rounded border-2 {compact ? 'h-4 w-4' : 'h-5 w-5'} {appointment.canceled_by_client ===
+				1
+					? 'border-white bg-white/20'
+					: 'border-current'}"
+			>
+				{#if appointment.canceled_by_client === 1}
+					<svg
+						class="h-3.5 w-3.5"
+						viewBox="0 0 24 24"
+						fill="none"
+						stroke="currentColor"
+						stroke-width="3"
+						stroke-linecap="round"
+						stroke-linejoin="round"><path d="m5 12 5 5L20 7" /></svg
+					>
+				{/if}
+			</span>
+			Client canceled
 		</button>
 	</form>
 	<form method="POST" action="?/setSessionStatus" use:enhance>

@@ -4,21 +4,38 @@ import { sharedActions } from '#lib/server/actions.ts';
 import { extractClient, validateRules } from '#lib/server/parse.ts';
 import { listRecentEvents, listSyncRuns } from '#lib/server/repo.ts';
 import {
+	addAdditionalCalendar,
+	getAdditionalCalendars,
 	getCalendarConfig,
 	getParseRules,
 	getSetting,
+	removeAdditionalCalendar,
 	saveCalendarConfig,
 	saveParseRules
 } from '#lib/server/settings.ts';
+import { logAudit, removeCalendarSourceData } from '#lib/server/repo.ts';
 import { syncCalendar } from '#lib/server/sync.ts';
 import type { Actions, PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async () => {
 	const rules = getParseRules();
+	const config = getCalendarConfig();
+	const additionalCalendars = getAdditionalCalendars();
+	const sourceLabels = new Map(
+		additionalCalendars.map((calendar) => [`extra:${calendar.id}`, calendar.name])
+	);
+	if (config.providerName) {
+		sourceLabels.set('ics', config.providerName);
+		sourceLabels.set('caldav', config.providerName);
+	}
 	return {
-		config: getCalendarConfig(),
+		config,
+		additionalCalendars,
 		rules,
-		runs: listSyncRuns(12),
+		runs: listSyncRuns(12).map((run) => ({
+			...run,
+			sourceLabel: sourceLabels.get(run.source) ?? run.source
+		})),
 		events: listRecentEvents(80)
 			.filter((event) => event.category !== 'break')
 			.slice(0, 30)
@@ -71,6 +88,33 @@ export const actions: Actions = {
 
 		saveCalendarConfig(config);
 		return { sourceSaved: true as const };
+	},
+
+	addCalendar: async ({ request, locals }) => {
+		const form = await request.formData();
+		const name = String(form.get('name') ?? '').trim();
+		const icsUrl = String(form.get('icsUrl') ?? '').trim();
+		if (!name) return fail(400, { calendarError: 'Give the calendar a provider label.' });
+		if (!/^(https?:\/\/|webcal:\/\/)/i.test(icsUrl)) {
+			return fail(400, { calendarError: 'Paste an https:// or webcal:// ICS link.' });
+		}
+		const existing = getAdditionalCalendars();
+		if (existing.some((calendar) => calendar.icsUrl === icsUrl)) {
+			return fail(400, { calendarError: 'That calendar is already added.' });
+		}
+		const calendar = addAdditionalCalendar(name, icsUrl);
+		logAudit(locals.user?.id ?? null, 'add_calendar_source', 'calendar', calendar.id, name);
+		return { calendarAdded: true as const };
+	},
+
+	removeCalendar: async ({ request, locals }) => {
+		const form = await request.formData();
+		const id = String(form.get('id') ?? '').trim();
+		const removed = removeAdditionalCalendar(id);
+		if (!removed) return fail(400, { calendarError: 'Calendar not found.' });
+		removeCalendarSourceData(`extra:${id}`, `extra:${id}:`);
+		logAudit(locals.user?.id ?? null, 'remove_calendar_source', 'calendar', id, removed.name);
+		return { calendarRemoved: true as const };
 	},
 
 	saveRules: async ({ request }) => {
