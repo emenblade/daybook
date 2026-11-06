@@ -183,6 +183,16 @@ export interface HoursSummary {
 	clientCount: number;
 }
 
+export interface AuditEntry {
+	id: number;
+	at: string;
+	user_id: number | null;
+	action: string;
+	entity: string | null;
+	entity_id: string | null;
+	detail: string | null;
+}
+
 export interface AdditionalCalendar {
 	id: string;
 	name: string;

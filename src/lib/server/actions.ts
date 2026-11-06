@@ -1,4 +1,4 @@
-import { fail, type Actions } from '@sveltejs/kit';
+import { fail, redirect, type Actions } from '@sveltejs/kit';
 import { parseISO, parseTimeToMin, todayISO } from '#lib/dates.ts';
 import { modalityFor } from '#lib/session.ts';
 import type { Modality } from '#lib/types.ts';
@@ -159,6 +159,16 @@ export const sharedActions: Actions = {
 		}
 		repo.setTreatmentPlan(id, action);
 		return { success: true };
+	},
+
+	deleteClient: async ({ request, locals }) => {
+		const form = await request.formData();
+		const id = Number(form.get('id'));
+		if (!id) return fail(400, { error: 'Missing client.' });
+		const removed = repo.deleteClientData(id);
+		if (!removed) return fail(404, { error: 'Client not found.' });
+		repo.logAudit(locals.user?.id ?? null, 'delete_client', 'client', id, null);
+		throw redirect(303, '/clients');
 	},
 
 	setClientStatus: async ({ request }) => {

@@ -327,3 +327,30 @@
 		{/each}
 	</ul>
 </section>
+
+<section class="card mt-4 p-3">
+	<h2 class="font-bold">Client data</h2>
+	<p class="mt-1 text-xs text-slate-500 dark:text-slate-400">
+		Export this client's record before deleting it. Deleting removes the client from Daybook and
+		suppresses future syncs of that name; it does not change Jane or the source calendar. Shared
+		group/couples appointments remain for the other clients.
+	</p>
+	<div class="mt-2 flex flex-wrap gap-2">
+		<a class="chip chip-sky" href="/api/clients/{data.client.id}/export">Export client data</a>
+		<form
+			method="POST"
+			action="?/deleteClient"
+			use:enhance={({ cancel }) => {
+				if (
+					!window.confirm(
+						`Delete ${data.client.name} and suppress future syncs of this name? Export first if you need a copy.`
+					)
+				)
+					cancel();
+			}}
+		>
+			<input type="hidden" name="id" value={data.client.id} />
+			<button class="chip chip-rose">Delete client</button>
+		</form>
+	</div>
+</section>

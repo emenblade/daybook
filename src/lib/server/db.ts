@@ -1,6 +1,14 @@
 import type Database from 'better-sqlite3';
 import { createRequire } from 'node:module';
-import { closeSync, existsSync, mkdirSync, openSync, readSync, rmSync } from 'node:fs';
+import {
+	closeSync,
+	existsSync,
+	mkdirSync,
+	openSync,
+	readFileSync,
+	readSync,
+	rmSync
+} from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { DATABASE_PATH } from '$app/env/private';
 import { addDays, parseISO, todayISO } from '#lib/dates.ts';
@@ -19,7 +27,7 @@ const Sqlite = require('better-sqlite3-multiple-ciphers') as typeof Database;
 type Db = Database.Database;
 type CipherDb = Db & { key(key: Buffer): number; rekey(key: Buffer): number };
 
-const SCHEMA_VERSION = 8;
+const SCHEMA_VERSION = 9;
 
 const SCHEMA = `
 	CREATE TABLE users (
@@ -52,6 +60,11 @@ const SCHEMA = `
 		is_demo INTEGER NOT NULL DEFAULT 0,
 		created_at TEXT NOT NULL DEFAULT (datetime('now')),
 		updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+	);
+
+	CREATE TABLE client_suppressions (
+		normalized TEXT PRIMARY KEY,
+		created_at TEXT NOT NULL DEFAULT (datetime('now'))
 	);
 
 	CREATE TABLE appointments (
@@ -144,10 +157,21 @@ const SCHEMA = `
 `;
 
 function databaseKey(): Buffer | null {
-	const value = process.env.DAYBOOK_DB_KEY?.trim() ?? '';
+	let value = process.env.DAYBOOK_DB_KEY?.trim() ?? '';
+	if (!value) {
+		const explicitFile = process.env.DAYBOOK_DB_KEY_FILE?.trim();
+		const keyFile = explicitFile || '/run/secrets/daybook_db_key';
+		if (existsSync(keyFile)) {
+			value = readFileSync(keyFile, 'utf8').trim();
+		} else if (explicitFile) {
+			throw new Error(`DAYBOOK_DB_KEY_FILE was set but the file was not found: ${keyFile}`);
+		}
+	}
 	if (!value) return null;
 	if (!/^[0-9a-fA-F]{64}$/.test(value)) {
-		throw new Error('DAYBOOK_DB_KEY must be exactly 64 hex characters (32 bytes).');
+		throw new Error(
+			'DAYBOOK_DB_KEY (or the key file) must contain exactly 64 hex characters (32 bytes).'
+		);
 	}
 	return Buffer.from(value, 'hex');
 }
@@ -359,6 +383,17 @@ function migrate(database: Db): void {
 			);
 			CREATE INDEX IF NOT EXISTS idx_audit_at ON audit_log(at);
 		`);
+		database.pragma('user_version = 8');
+		version = 8;
+	}
+
+	if (version === 8) {
+		database.exec(`
+			CREATE TABLE IF NOT EXISTS client_suppressions (
+				normalized TEXT PRIMARY KEY,
+				created_at TEXT NOT NULL DEFAULT (datetime('now'))
+			);
+		`);
 		database.pragma(`user_version = ${SCHEMA_VERSION}`);
 		return;
 	}
@@ -373,6 +408,7 @@ function migrate(database: Db): void {
 		DROP TABLE IF EXISTS calendar_events;
 		DROP TABLE IF EXISTS sync_runs;
 		DROP TABLE IF EXISTS clients;
+		DROP TABLE IF EXISTS client_suppressions;
 		DROP TABLE IF EXISTS sessions;
 		DROP TABLE IF EXISTS entries;
 		DROP TABLE IF EXISTS users;

@@ -23,7 +23,8 @@ import type {
 	TypeHours,
 	User,
 	FollowUpReminder,
-	TreatmentPlanReminder
+	TreatmentPlanReminder,
+	AuditEntry
 } from '#lib/types.ts';
 import {
 	dueTreatmentAction,
@@ -32,6 +33,7 @@ import {
 	type TreatmentActionKind
 } from '#lib/treatment.ts';
 import { db } from './db.ts';
+import { normalizeName } from './parse.ts';
 
 type AppointmentRow = Omit<Appointment, 'participants'>;
 
@@ -214,6 +216,56 @@ export function setClientHistoricalDates(
 		dates.planReviewedAt,
 		id
 	);
+}
+
+export function isClientSuppressed(normalized: string): boolean {
+	return Boolean(
+		db.prepare('SELECT 1 FROM client_suppressions WHERE normalized = ?').get(normalized)
+	);
+}
+
+export function clientAudit(clientId: number): AuditEntry[] {
+	return db
+		.prepare(
+			`SELECT id, at, user_id, action, entity, entity_id, detail
+			 FROM audit_log
+			 WHERE (entity = 'client' AND entity_id = ?)
+			    OR (entity = 'appointment' AND CAST(entity_id AS INTEGER) IN
+			        (SELECT appointment_id FROM appointment_clients WHERE client_id = ?))
+			 ORDER BY id`
+		)
+		.all(String(clientId), clientId) as AuditEntry[];
+}
+
+export function deleteClientData(id: number): { name: string; normalized: string } | null {
+	const client = getClient(id);
+	if (!client) return null;
+	const eventRows = db
+		.prepare('SELECT id, parsed_client FROM calendar_events WHERE parsed_client IS NOT NULL')
+		.all() as { id: number; parsed_client: string }[];
+	const eventIds = eventRows
+		.filter((event) => normalizeName(event.parsed_client) === client.normalized)
+		.map((event) => event.id);
+	const appointmentIds = db
+		.prepare('SELECT appointment_id FROM appointment_clients WHERE client_id = ?')
+		.all(id) as { appointment_id: number }[];
+
+	db.transaction(() => {
+		db.prepare('INSERT OR IGNORE INTO client_suppressions (normalized) VALUES (?)').run(
+			client.normalized
+		);
+		const deleteEvent = db.prepare('DELETE FROM calendar_events WHERE id = ?');
+		for (const eventId of eventIds) deleteEvent.run(eventId);
+		db.prepare('DELETE FROM appointment_clients WHERE client_id = ?').run(id);
+		const deleteOrphan = db.prepare(
+			`DELETE FROM appointments WHERE id = ?
+			 AND NOT EXISTS (SELECT 1 FROM appointment_clients WHERE appointment_id = appointments.id)`
+		);
+		for (const appointment of appointmentIds) deleteOrphan.run(appointment.appointment_id);
+		db.prepare('DELETE FROM clients WHERE id = ?').run(id);
+	})();
+
+	return { name: client.name, normalized: client.normalized };
 }
 
 export function logAudit(

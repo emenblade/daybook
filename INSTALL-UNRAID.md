@@ -59,6 +59,10 @@ The container runs as root inside the container (same as StreamAssets), so the d
    hex key (`openssl rand -hex 32`), and store the key somewhere separate. This
    encrypts the live SQLite database; losing it makes the database unreadable.
    Leave it blank only for an unencrypted test database.
+   To avoid re-entering the key after every container update, create
+   `/boot/config/daybook-db-key` on the Unraid flash drive with the 64-hex key,
+   map it to `/run/secrets/daybook_db_key` read-only in the container, and leave
+   `DAYBOOK_DB_KEY` blank. Daybook reads the mounted file automatically.
 2. Open `http://<nas-ip>:8484`.
 3. Sign in with the first-run bootstrap credentials (`admin` / `daybook-setup`
    unless you set `DAYBOOK_SETUP_*` in the template). Daybook will force you to

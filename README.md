@@ -32,6 +32,9 @@ iCloud calendar and needs to stay ahead of session notes and client follow-ups.
 - **Historical data.** On a client page, **Historical data** lets her backdate
   consent and treatment-plan dates and add a past session. Manual changes are
   recorded in a minimal audit log; there are no free-text notes.
+- **Client data controls.** Each client page can export that client's record as
+  JSON or delete it from Daybook. Deletion suppresses future syncs of that name;
+  shared group/couples appointments remain for the other clients.
 - **Where and how.** Every appointment keeps its calendar location, provider
   label, and a derived **In person / Remote** modality. Hours and CSV exports can
   be broken down by session type, modality, and provider.
@@ -200,6 +203,7 @@ To build from source instead: `cd source && docker compose up -d --build`.
 | `DAYBOOK_SETUP_PASSWORD` | `daybook-setup` | First-run bootstrap password; change before exposing |
 | `DAYBOOK_USER_NAME` | `Sara` | Display name in the UI |
 | `DAYBOOK_DB_KEY` | blank | 64 hex chars; encrypts the live SQLite database |
+| `DAYBOOK_DB_KEY_FILE` | `/run/secrets/daybook_db_key` if present | Read the DB key from a mounted file instead of re-entering it |
 | `ORIGIN` | blank | Public HTTPS URL when behind Nginx, e.g. `https://daybook.example.com` |
 | `ADDRESS_HEADER` | blank | Set to `x-forwarded-for` behind Nginx for real client IPs |
 | `XFF_DEPTH` | `1` | Number of trusted proxies in front of Daybook |
@@ -210,6 +214,12 @@ rekeys an existing plaintext database on first start. Keep the key separate from
 the database and backups; if it is lost, the live database cannot be opened. A
 restored backup is a plaintext SQLite file; if `DAYBOOK_DB_KEY` is set, Daybook
 re-encrypts it on the next start (or set a new key).
+
+**Avoid re-entering the key on container updates:** put the key in a file outside
+the appdata folder, mount it at `/run/secrets/daybook_db_key` read-only, and leave
+`DAYBOOK_DB_KEY` blank. Daybook reads the file automatically. On Unraid, create
+`/boot/config/daybook-db-key` and map it to `/run/secrets/daybook_db_key` with
+Mode `ro`; the container update then keeps working without re-entering the key.
 
 Backups: **Settings → Encrypted backup**, with a passphrase you choose. The
 passphrase is not stored; without it the backup cannot be restored. Restore with

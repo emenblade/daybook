@@ -197,6 +197,10 @@ async function syncJob(
 				}
 			}
 
+			if (parsedClient && repo.isClientSuppressed(normalizeName(parsedClient))) {
+				continue;
+			}
+
 			repo.upsertCalendarEvent({
 				uid: storedUid,
 				source: job.key,
