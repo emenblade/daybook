@@ -1,0 +1,45 @@
+services:
+  daybook:
+    image: ${DAYBOOK_IMAGE}
+    container_name: daybook
+    restart: unless-stopped
+    environment:
+      TZ: ${TZ}
+      DATABASE_PATH: /data/daybook.db
+      DAYBOOK_DB_KEY_FILE: /run/secrets/daybook_db_key
+      DAYBOOK_SETUP_USERNAME: ${DAYBOOK_SETUP_USERNAME}
+      DAYBOOK_SETUP_PASSWORD: ${DAYBOOK_SETUP_PASSWORD}
+      DAYBOOK_USER_NAME: ${DAYBOOK_USER_NAME}
+      ORIGIN: https://${DAYBOOK_DOMAIN}
+      ADDRESS_HEADER: cf-connecting-ip
+    volumes:
+      - ./data:/data
+      - ./backups:/backups
+      - ./secrets/daybook_db_key:/run/secrets/daybook_db_key:ro
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"
+    networks:
+      - daybook
+
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: daybook-cloudflared
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run
+    environment:
+      TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN}
+    depends_on:
+      - daybook
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"
+    networks:
+      - daybook
+
+networks:
+  daybook:

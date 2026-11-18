@@ -176,6 +176,13 @@ start as **To confirm** and the 3-day reminder clock applies.
   list until marked. Marking is available from the desk view, client list, or
   client detail.
 
+## Appliance deployment
+
+`deploy/appliance/` contains a provisioning kit for a small AMD64 Linux box:
+Cloudflare Tunnel, Docker, encrypted database key, daily encrypted backups, and
+a pinned app version. It exposes no inbound ports and does not need dynamic DNS.
+See `deploy/appliance/README.md`.
+
 ## Deploy on Unraid
 
 The app is published from GitHub as a container image:
